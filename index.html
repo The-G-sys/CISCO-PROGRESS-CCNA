@@ -5,8 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CCNA Study Tracker - Préparation 200-301</title>
     <meta name="theme-color" content="#111827">
+    <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
     <style>
         body { background-color: #111827; color: #E5E7EB; }
         .progress-bar { transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -32,118 +37,130 @@
         details > summary::-webkit-details-marker { display: none; }
         details[open] summary ~ * { animation: sweep .3s ease-in-out; }
         @keyframes sweep { 0% {opacity: 0; transform: translateY(-10px)} 100% {opacity: 1; transform: translateY(0)} }
-        
         .pomodoro-display { font-variant-numeric: tabular-nums; letter-spacing: 2px; }
-        .badge-locked { filter: grayscale(100%); opacity: 0.4; }
+        .badge-locked { filter: grayscale(100%); opacity: 0.6; cursor: not-allowed; }
         .badge-unlocked { filter: grayscale(0%); opacity: 1; animation: pop 0.5s ease; }
         @keyframes pop { 0% { transform: scale(0.8); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        .modal-overlay { background-color: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px); }
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.8); backdrop-filter: blur(4px); }
     </style>
 </head>
-<body class="min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <!-- En-tête -->
-        <header class="flex justify-between items-center mb-8">
-            <div class="flex items-center gap-3">
-                <h1 class="text-3xl font-bold text-blue-400">CCNA 200-301 Tracker</h1>
-                <span id="xpBadge" class="bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full">Niveau 1 (0 XP)</span>
-            </div>
-            <div class="flex items-center space-x-4">
-                <div class="flex items-center bg-gray-800 px-3 py-1 rounded-lg border border-orange-500/30">
-                    <span class="text-2xl mr-2">🔥</span>
-                    <div>
-                        <div class="text-xs text-gray-400">Série</div>
-                        <div id="streakCount" class="font-bold text-orange-400">0 jours</div>
-                    </div>
-                </div>
-                <button id="resetProgress" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white text-sm">Réinitialiser</button>
-            </div>
-        </header>
+<body class="min-h-screen flex flex-col">
 
-        <!-- Tableau de bord -->
-        <section id="dashboard" class="mb-8">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                <div class="bg-gray-800 p-6 rounded-xl">
-                    <h2 class="text-sm font-semibold text-gray-400 mb-2">Progression Globale</h2>
-                    <div class="flex items-center">
-                        <div class="w-full bg-gray-700 rounded-full h-3 mr-3">
-                            <div id="globalProgress" class="bg-blue-500 h-3 rounded-full progress-bar" style="width: 0%"></div>
+    <!-- PAGE D'ACCUEIL -->
+    <div id="landingPage" class="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div class="max-w-2xl w-full">
+            <div class="text-6xl mb-6">🎓</div>
+            <h1 class="text-5xl font-bold text-blue-400 mb-4">CCNA 200-301 Tracker</h1>
+            <p class="text-xl text-gray-300 mb-8">Votre compagnon d'étude intelligent, gamifié et synchronisé dans le cloud.</p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <button onclick="showAuth('login')" class="px-8 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-bold text-lg transition">Se connecter</button>
+                <button onclick="showAuth('register')" class="px-8 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-bold text-lg transition">Créer un compte</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALE D'AUTHENTIFICATION -->
+    <div id="authModal" class="fixed inset-0 modal-overlay z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-gray-800 rounded-2xl max-w-md w-full p-8 border border-gray-700 shadow-2xl relative">
+            <button onclick="hideAuth()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+            <h2 id="authTitle" class="text-2xl font-bold text-center mb-6 text-blue-400">Connexion</h2>
+            <form id="authForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Adresse e-mail</label>
+                    <input type="email" id="authEmail" required class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Mot de passe</label>
+                    <input type="password" id="authPassword" required minlength="6" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <p id="authError" class="text-red-400 text-sm hidden"></p>
+                <button type="submit" id="authSubmitBtn" class="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg text-white font-bold transition">Se connecter</button>
+            </form>
+            <p class="text-center text-sm text-gray-400 mt-6">
+                <span id="authSwitchText">Pas encore de compte ?</span>
+                <button onclick="toggleAuthMode()" class="text-blue-400 hover:underline font-semibold ml-1" id="authSwitchBtn">S'inscrire</button>
+            </p>
+        </div>
+    </div>
+
+    <!-- APPLICATION PRINCIPALE -->
+    <div id="mainApp" class="hidden flex-1">
+        <div class="container mx-auto px-4 py-8">
+            <header class="flex justify-between items-center mb-8">
+                <div class="flex items-center gap-3">
+                    <h1 class="text-2xl font-bold text-blue-400">CCNA Tracker</h1>
+                    <span id="xpBadge" class="bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full">Niveau 1 (0 XP)</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center bg-gray-800 px-3 py-1 rounded-lg border border-orange-500/30">
+                        <span class="text-xl mr-2">🔥</span>
+                        <div><div class="text-xs text-gray-400">Série</div><div id="streakCount" class="font-bold text-orange-400">0 j</div></div>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-gray-300 bg-gray-800 px-3 py-1 rounded-lg">
+                        <span>👤</span><span id="userEmailDisplay">user@email.com</span>
+                    </div>
+                    <button id="logoutBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white text-sm">Déconnexion</button>
+                </div>
+            </header>
+
+            <section id="dashboard" class="mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                    <div class="bg-gray-800 p-6 rounded-xl">
+                        <h2 class="text-sm font-semibold text-gray-400 mb-2">Progression Globale</h2>
+                        <div class="flex items-center">
+                            <div class="w-full bg-gray-700 rounded-full h-3 mr-3"><div id="globalProgress" class="bg-blue-500 h-3 rounded-full progress-bar" style="width: 0%"></div></div>
+                            <span id="progressPercentage" class="text-xl font-bold">0%</span>
                         </div>
-                        <span id="progressPercentage" class="text-xl font-bold">0%</span>
+                        <p id="progressCount" class="text-xs text-gray-400 mt-2">0/38 leçons</p>
                     </div>
-                    <p id="progressCount" class="text-xs text-gray-400 mt-2">0/38 leçons</p>
-                </div>
-
-                <!-- Minuteur Pomodoro -->
-                <div class="bg-gray-800 p-6 rounded-xl border border-blue-500/20">
-                    <h2 class="text-sm font-semibold text-gray-400 mb-2 flex justify-between">
-                        <span>⏱️ Pomodoro</span>
-                        <select id="pomodoroLesson" class="bg-gray-700 text-xs rounded px-2 py-1 w-24"></select>
-                    </h2>
-                    <div class="flex items-center justify-between">
-                        <div id="pomodoroTimer" class="text-3xl font-bold pomodoro-display text-blue-400">25:00</div>
-                        <div class="flex gap-2">
-                            <button id="pomoStart" class="w-8 h-8 bg-green-600 rounded-full hover:bg-green-500 flex items-center justify-center">▶</button>
-                            <button id="pomoPause" class="w-8 h-8 bg-yellow-600 rounded-full hover:bg-yellow-500 flex items-center justify-center hidden">⏸</button>
-                            <button id="pomoReset" class="w-8 h-8 bg-gray-600 rounded-full hover:bg-gray-500 flex items-center justify-center">↺</button>
+                    <div class="bg-gray-800 p-6 rounded-xl border border-blue-500/20">
+                        <h2 class="text-sm font-semibold text-gray-400 mb-2 flex justify-between"><span>⏱️ Pomodoro</span><select id="pomodoroLesson" class="bg-gray-700 text-xs rounded px-2 py-1 w-24"></select></h2>
+                        <div class="flex items-center justify-between">
+                            <div id="pomodoroTimer" class="text-3xl font-bold pomodoro-display text-blue-400">25:00</div>
+                            <div class="flex gap-2">
+                                <button id="pomoStart" class="w-8 h-8 bg-green-600 rounded-full hover:bg-green-500 flex items-center justify-center">▶</button>
+                                <button id="pomoPause" class="w-8 h-8 bg-yellow-600 rounded-full hover:bg-yellow-500 flex items-center justify-center hidden">⏸</button>
+                                <button id="pomoReset" class="w-8 h-8 bg-gray-600 rounded-full hover:bg-gray-500 flex items-center justify-center">↺</button>
+                            </div>
                         </div>
+                        <div class="text-xs text-gray-400 mt-2 text-center" id="pomoStatus">Mode Travail (25 min)</div>
                     </div>
-                    <div class="text-xs text-gray-400 mt-2 text-center" id="pomoStatus">Mode Travail (25 min)</div>
+                    <div class="bg-gray-800 p-6 rounded-xl"><h2 class="text-sm font-semibold text-gray-400 mb-2">Jours Restants</h2><div id="countdown" class="text-3xl font-bold text-green-400">90</div><p id="examDate" class="text-xs text-gray-400 mt-2"></p></div>
+                    <div class="bg-gray-800 p-6 rounded-xl"><h2 class="text-sm font-semibold text-gray-400 mb-2">Préparation Examen</h2><div id="examReadiness" class="text-3xl font-bold text-yellow-400">0%</div><p class="text-xs text-gray-400 mt-2">Score estimé pondéré</p></div>
                 </div>
-
                 <div class="bg-gray-800 p-6 rounded-xl">
-                    <h2 class="text-sm font-semibold text-gray-400 mb-2">Jours Restants</h2>
-                    <div id="countdown" class="text-3xl font-bold text-green-400">90</div>
-                    <p id="examDate" class="text-xs text-gray-400 mt-2"></p>
+                    <h2 class="text-lg font-semibold mb-4">Progression par Domaine Officiel</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="domainProgressContainer"></div>
                 </div>
+            </section>
 
-                <div class="bg-gray-800 p-6 rounded-xl">
-                    <h2 class="text-sm font-semibold text-gray-400 mb-2">Préparation Examen</h2>
-                    <div id="examReadiness" class="text-3xl font-bold text-yellow-400">0%</div>
-                    <p class="text-xs text-gray-400 mt-2">Score estimé pondéré</p>
-                </div>
-            </div>
+            <nav class="mb-8 flex flex-wrap gap-2">
+                <button class="nav-tab tab-active px-4 py-2 rounded-lg text-sm font-semibold" data-tab="timeline">📅 Planning</button>
+                <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="notes">📝 Mes Notes</button>
+                <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="tools">🛠️ Outils</button>
+                <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="notifications">🔔 Rappels</button>
+                <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="resources">📚 Ressources</button>
+            </nav>
 
-            <div class="bg-gray-800 p-6 rounded-xl">
-                <h2 class="text-lg font-semibold mb-4">Progression par Domaine</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="domainProgressContainer"></div>
-            </div>
-        </section>
+            <section id="tab-timeline" class="tab-content mb-8">
+                <h2 class="text-2xl font-bold mb-6">Planning sur 3 Mois</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="timelineContainer"></div>
+            </section>
 
-        <!-- Onglets de navigation -->
-        <nav class="mb-8 flex flex-wrap gap-2">
-            <button class="nav-tab tab-active px-4 py-2 rounded-lg text-sm font-semibold" data-tab="timeline">📅 Planning</button>
-            <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="notes">📝 Mes Notes</button>
-            <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="tools">🛠️ Outils & Sauvegarde</button>
-            <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="notifications">🔔 Rappels</button>
-            <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="resources">📚 Ressources</button>
-        </nav>
-
-        <!-- Section Planning -->
-        <section id="tab-timeline" class="tab-content mb-8">
-            <h2 class="text-2xl font-bold mb-6">Planning sur 3 Mois</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="timelineContainer"></div>
-        </section>
-
-        <!-- Section Mes Notes -->
-        <section id="tab-notes" class="tab-content mb-8 hidden">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold">📝 Mes Notes</h2>
-                <div class="flex gap-2">
-                    <button id="exportNotesMd" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm">💾 Exporter (Markdown)</button>
+            <section id="tab-notes" class="tab-content mb-8 hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">📝 Mes Notes</h2>
                     <button id="newNote" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white text-sm">➕ Note libre</button>
                 </div>
-            </div>
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <div class="lg:col-span-1 bg-gray-800 rounded-xl p-4 max-h-[700px] overflow-y-auto">
-                    <h3 class="font-semibold mb-3 text-sm">Leçons</h3>
-                    <input type="text" id="searchNotes" placeholder="🔍 Rechercher..." class="w-full bg-gray-700 rounded px-3 py-2 text-sm mb-3">
-                    <div id="lessonsList" class="space-y-1"></div>
-                    <h3 class="font-semibold mt-4 mb-3 text-sm">Notes libres</h3>
-                    <div id="freeNotesList" class="space-y-1"></div>
-                </div>
-                <div class="lg:col-span-3 bg-gray-800 rounded-xl p-6">
-                    <div id="noteEditor">
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    <div class="lg:col-span-1 bg-gray-800 rounded-xl p-4 max-h-[700px] overflow-y-auto">
+                        <h3 class="font-semibold mb-3 text-sm">Leçons</h3>
+                        <input type="text" id="searchNotes" placeholder="🔍 Rechercher..." class="w-full bg-gray-700 rounded px-3 py-2 text-sm mb-3">
+                        <div id="lessonsList" class="space-y-1"></div>
+                        <h3 class="font-semibold mt-4 mb-3 text-sm">Notes libres</h3>
+                        <div id="freeNotesList" class="space-y-1"></div>
+                    </div>
+                    <div class="lg:col-span-3 bg-gray-800 rounded-xl p-6">
                         <div class="flex justify-between items-center mb-4">
                             <h3 id="noteTitle" class="text-xl font-semibold">Sélectionnez une leçon</h3>
                             <div class="flex gap-2">
@@ -152,170 +169,494 @@
                             </div>
                         </div>
                         <div class="mb-3 flex gap-3">
-                            <input type="text" id="noteTags" placeholder="Tags (ex: important, commande)" class="flex-1 bg-gray-700 rounded px-3 py-2 text-sm">
+                            <input type="text" id="noteTags" placeholder="Tags" class="flex-1 bg-gray-700 rounded px-3 py-2 text-sm">
                             <select id="noteType" class="bg-gray-700 rounded px-3 py-2 text-sm">
-                                <option value="summary">📋 Résumé</option>
-                                <option value="commands">💻 Commandes</option>
-                                <option value="questions">❓ Questions</option>
-                                <option value="personal">💭 Personnel</option>
+                                <option value="summary">📋 Résumé</option><option value="commands">💻 Commandes</option><option value="questions">❓ Questions</option><option value="personal">💭 Personnel</option>
                             </select>
                         </div>
                         <textarea id="noteContent" class="w-full bg-gray-700 rounded-lg p-4 text-sm font-mono" placeholder="Vos notes ici..."></textarea>
-                        <div class="flex justify-between mt-2 text-xs text-gray-400">
-                            <span id="charCount">0 caractères</span>
-                            <span id="lastSaved">Non sauvegardé</span>
-                        </div>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- Section Outils & Sauvegarde -->
-        <section id="tab-tools" class="tab-content mb-8 hidden">
-            <h2 class="text-2xl font-bold mb-6">🛠️ Outils d'Étude & Sauvegarde</h2>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                <div class="bg-gray-800 p-6 rounded-xl border border-blue-500/30">
-                    <h3 class="text-lg font-semibold mb-4 flex items-center">🧮 Pratique Subnetting</h3>
-                    <div class="bg-gray-900 p-4 rounded-lg mb-4">
-                        <p class="text-sm text-gray-300 mb-2">Adresse IP : <span id="subnetIp" class="font-mono text-blue-400 font-bold">192.168.1.0</span> / <span id="subnetMask" class="font-mono text-blue-400 font-bold">24</span></p>
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div><label class="text-gray-400 text-xs">Adresse Réseau</label><input type="text" id="ansNetwork" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
-                            <div><label class="text-gray-400 text-xs">Broadcast</label><input type="text" id="ansBroadcast" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
-                            <div><label class="text-gray-400 text-xs">1er Hôte</label><input type="text" id="ansFirst" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
-                            <div><label class="text-gray-400 text-xs">Dernier Hôte</label><input type="text" id="ansLast" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
+            <section id="tab-tools" class="tab-content mb-8 hidden">
+                <h2 class="text-2xl font-bold mb-6">⚙️ Outils d'Étude</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-gray-800 p-6 rounded-xl border border-blue-500/30">
+                        <h3 class="text-lg font-semibold mb-4">🧮 Pratique Subnetting</h3>
+                        <div class="bg-gray-900 p-4 rounded-lg mb-4">
+                            <p class="text-sm text-gray-300 mb-2">IP : <span id="subnetIp" class="font-mono text-blue-400 font-bold">192.168.1.0</span> / <span id="subnetMask" class="font-mono text-blue-400 font-bold">24</span></p>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div><label class="text-gray-400 text-xs">Réseau</label><input type="text" id="ansNetwork" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
+                                <div><label class="text-gray-400 text-xs">Broadcast</label><input type="text" id="ansBroadcast" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
+                                <div><label class="text-gray-400 text-xs">1er Hôte</label><input type="text" id="ansFirst" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
+                                <div><label class="text-gray-400 text-xs">Dernier Hôte</label><input type="text" id="ansLast" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <button id="checkSubnet" class="flex-1 bg-blue-600 hover:bg-blue-700 py-2 rounded-lg text-sm font-semibold">Vérifier (+10 XP)</button>
-                        <button id="newSubnet" class="flex-1 bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-sm">Nouvelle Question</button>
-                    </div>
-                    <p id="subnetFeedback" class="text-sm mt-3 text-center font-semibold"></p>
-                </div>
-
-                <div class="bg-gray-800 p-6 rounded-xl border border-green-500/30">
-                    <h3 class="text-lg font-semibold mb-4 flex items-center">💾 Sauvegarde des Données</h3>
-                    <p class="text-sm text-gray-400 mb-4">Exportez toutes vos données (progression, notes, XP, badges) dans un fichier JSON pour les sécuriser ou les transférer.</p>
-                    <div class="flex flex-col gap-3">
-                        <button id="exportJson" class="w-full bg-green-600 hover:bg-green-700 py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2">📥 Exporter mes données (JSON)</button>
-                        <div class="relative">
-                            <input type="file" id="importJsonFile" accept=".json" class="hidden">
-                            <button onclick="document.getElementById('importJsonFile').click()" class="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2">📤 Importer des données (JSON)</button>
+                        <div class="flex gap-2">
+                            <button id="checkSubnet" class="flex-1 bg-blue-600 hover:bg-blue-700 py-2 rounded-lg text-sm font-semibold">Vérifier (+10 XP)</button>
+                            <button id="newSubnet" class="flex-1 bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-sm">Nouvelle</button>
                         </div>
+                        <p id="subnetFeedback" class="text-sm mt-3 text-center font-semibold"></p>
+                    </div>
+                    <div class="bg-gray-800 p-6 rounded-xl border border-green-500/30">
+                        <h3 class="text-lg font-semibold mb-4">☁️ Synchronisation Cloud</h3>
+                        <p class="text-sm text-gray-400 mb-4">Vos données sont automatiquement sauvegardées dans votre compte Firebase.</p>
+                        <div class="bg-green-900/20 border border-green-500/30 p-4 rounded-lg"><p class="text-green-400 text-sm">✅ Synchronisé en temps réel</p></div>
                     </div>
                 </div>
-            </div>
-            <div class="bg-gray-800 p-6 rounded-xl">
-                <h3 class="text-lg font-semibold mb-4">🏆 Badges & Succès</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="badgesContainer"></div>
-            </div>
-        </section>
-
-        <!-- Section Notifications -->
-        <section id="tab-notifications" class="tab-content mb-8 hidden">
-            <h2 class="text-2xl font-bold mb-6">🔔 Notifications & Rappels</h2>
-            <div class="bg-gray-800 p-6 rounded-xl mb-6">
-                <h3 class="text-lg font-semibold mb-4">⚙️ Configuration EmailJS</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <input type="text" id="emailjsPublicKey" placeholder="Public Key" class="bg-gray-700 rounded px-3 py-2 text-sm">
-                    <input type="text" id="emailjsServiceId" placeholder="Service ID" class="bg-gray-700 rounded px-3 py-2 text-sm">
-                    <input type="text" id="emailjsTemplateId" placeholder="Template ID" class="bg-gray-700 rounded px-3 py-2 text-sm">
-                    <input type="email" id="userEmail" placeholder="Votre e-mail" class="bg-gray-700 rounded px-3 py-2 text-sm">
+                <div class="bg-gray-800 p-6 rounded-xl">
+                    <h3 class="text-lg font-semibold mb-4">🏆 Badges & Succès</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="badgesContainer"></div>
                 </div>
-                <div class="flex gap-2">
+            </section>
+
+            <section id="tab-notifications" class="tab-content mb-8 hidden">
+                <h2 class="text-2xl font-bold mb-6">🔔 Notifications & Rappels</h2>
+                <div class="bg-gray-800 p-6 rounded-xl mb-6">
+                    <h3 class="text-lg font-semibold mb-4">⚙️ Configuration EmailJS</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <input type="text" id="emailjsPublicKey" placeholder="Public Key" class="bg-gray-700 rounded px-3 py-2 text-sm">
+                        <input type="text" id="emailjsServiceId" placeholder="Service ID" class="bg-gray-700 rounded px-3 py-2 text-sm">
+                        <input type="text" id="emailjsTemplateId" placeholder="Template ID" class="bg-gray-700 rounded px-3 py-2 text-sm">
+                        <input type="email" id="userEmail" placeholder="Votre e-mail" class="bg-gray-700 rounded px-3 py-2 text-sm">
+                    </div>
                     <button id="saveEmailConfig" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm">💾 Sauvegarder</button>
-                    <button id="testEmail" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-white text-sm">📧 Test</button>
                 </div>
-                <div id="emailConfigStatus" class="mt-3 text-sm"></div>
-            </div>
-            <div class="bg-gray-800 p-6 rounded-xl">
-                <h3 class="text-lg font-semibold mb-4">⏰ Ajouter un rappel</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <select id="reminderLesson" class="bg-gray-700 rounded px-3 py-2 text-sm"></select>
-                    <input type="datetime-local" id="reminderDate" class="bg-gray-700 rounded px-3 py-2 text-sm">
-                    <input type="text" id="reminderMessage" placeholder="Message..." class="bg-gray-700 rounded px-3 py-2 text-sm">
+                <div class="bg-gray-800 p-6 rounded-xl">
+                    <h3 class="text-lg font-semibold mb-4">⏰ Ajouter un rappel</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <select id="reminderLesson" class="bg-gray-700 rounded px-3 py-2 text-sm"></select>
+                        <input type="datetime-local" id="reminderDate" class="bg-gray-700 rounded px-3 py-2 text-sm">
+                        <input type="text" id="reminderMessage" placeholder="Message..." class="bg-gray-700 rounded px-3 py-2 text-sm">
+                    </div>
+                    <button id="addReminder" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white text-sm">➕ Ajouter</button>
+                    <div id="remindersList" class="space-y-3 mt-6"></div>
                 </div>
-                <button id="addReminder" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white text-sm">➕ Ajouter</button>
-                <div id="remindersList" class="space-y-3 mt-6"></div>
-            </div>
-        </section>
+            </section>
 
-        <!-- Section Ressources -->
-        <section id="tab-resources" class="tab-content mb-8 hidden">
-            <h2 class="text-2xl font-bold mb-6">📚 Ressources & Résumés</h2>
-            <div class="bg-gray-800 p-6 rounded-xl mb-8 border border-gray-700">
-                <h3 class="text-xl font-bold mb-4 flex items-center text-blue-400"><span class="text-2xl mr-2">⌨️</span> Cheat Sheet Commandes CCNA</h3>
-                <details class="mb-3 border border-gray-700 rounded-lg overflow-hidden group">
-                    <summary class="bg-gray-700 p-4 cursor-pointer font-semibold hover:bg-gray-600 transition-colors flex justify-between items-center">
-                        <span>🌐 1. Fondations & Diagnostic</span><span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
-                    </summary>
-                    <div class="p-4 space-y-3 bg-gray-800">
-                        <div class="code-block p-3 rounded-lg text-xs font-mono">
-                            <div>enable / configure terminal / end</div>
-                            <div>copy running-config startup-config</div>
-                            <div>show ip interface brief / show version</div>
-                            <div>ping &lt;ip&gt; / traceroute &lt;ip&gt;</div>
+            <section id="tab-resources" class="tab-content mb-8 hidden">
+                <h2 class="text-2xl font-bold mb-6">📚 Ressources & Résumés</h2>
+                <div class="bg-gray-800 p-6 rounded-xl mb-8 border border-gray-700">
+                    <h3 class="text-xl font-bold mb-4 text-blue-400 flex items-center gap-2">
+                        <span class="text-2xl">⌨️</span> Cheat Sheet Commandes CCNA 200-301
+                    </h3>
+                    <p class="text-sm text-gray-400 mb-6">Liste complète des commandes Cisco par domaine. Cliquez sur chaque domaine pour voir les commandes.</p>
+
+                    <!-- Domaine 1: Network Fundamentals -->
+                    <details class="mb-3 border border-gray-700 rounded-lg overflow-hidden group">
+                        <summary class="bg-gray-700 p-4 cursor-pointer font-semibold hover:bg-gray-600 flex justify-between items-center">
+                            <span>🌐 1. Network Fundamentals - Commandes de base</span>
+                            <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div class="p-4 space-y-3 bg-gray-800">
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-blue-400 font-bold mb-2">! Modes de commande</div>
+                                <div>enable                          ! Passe en mode privilégié</div>
+                                <div>configure terminal              ! Mode configuration globale</div>
+                                <div>exit                           ! Retour au mode précédent</div>
+                                <div>end                            ! Retour direct au mode privilégié</div>
+                                <div>disable                        ! Retour au mode utilisateur</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-blue-400 font-bold mb-2">! Sauvegarde et gestion</div>
+                                <div>copy running-config startup-config  ! Sauvegarde la config</div>
+                                <div>write memory                    ! Alternative pour sauvegarder</div>
+                                <div>show running-config             ! Affiche la config active</div>
+                                <div>show startup-config             ! Affiche la config sauvegardée</div>
+                                <div>show version                    ! Version IOS et infos système</div>
+                                <div>reload                          ! Redémarre l'équipement</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-blue-400 font-bold mb-2">! Diagnostic réseau</div>
+                                <div>ping &lt;ip&gt;                      ! Test de connectivité ICMP</div>
+                                <div>traceroute &lt;ip&gt;                ! Trace le chemin des paquets</div>
+                                <div>show ip interface brief          ! Résumé des interfaces</div>
+                                <div>show interfaces                 ! Détails des interfaces</div>
+                                <div>show cdp neighbors              ! Voisins CDP</div>
+                                <div>show cdp neighbors detail       ! Détails voisins CDP</div>
+                                <div>show lldp neighbors             ! Voisins LLDP</div>
+                                <div>show lldp neighbors detail      ! Détails voisins LLDP</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-blue-400 font-bold mb-2">! Configuration de base</div>
+                                <div>hostname &lt;nom&gt;                 ! Nom de l'équipement</div>
+                                <div>enable secret &lt;mot_de_passe&gt;  ! Mot de passe privilégié</div>
+                                <div>service password-encryption     ! Chiffre les mots de passe</div>
+                                <div>banner motd #message#           ! Message d'accueil</div>
+                                <div>line console 0                  ! Configuration console</div>
+                                <div>line vty 0 4                    ! Configuration VTY (Telnet/SSH)</div>
+                                <div>password &lt;mot_de_passe&gt;       ! Mot de passe ligne</div>
+                                <div>login                           ! Active la demande de connexion</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-blue-400 font-bold mb-2">! SSH (accès sécurisé)</div>
+                                <div>ip domain-name cisco.com        ! Nom de domaine (requis pour SSH)</div>
+                                <div>crypto key generate rsa modulus 2048  ! Génère les clés RSA</div>
+                                <div>username admin secret &lt;mdp&gt;    ! Crée un utilisateur</div>
+                                <div>transport input ssh             ! Autorise uniquement SSH</div>
+                                <div>login local                     ! Utilise la base locale</div>
+                            </div>
                         </div>
-                    </div>
-                </details>
-                <details class="mb-3 border border-gray-700 rounded-lg overflow-hidden group">
-                    <summary class="bg-gray-700 p-4 cursor-pointer font-semibold hover:bg-gray-600 transition-colors flex justify-between items-center">
-                        <span>🔌 2. Accès Réseau (VLAN, STP)</span><span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
-                    </summary>
-                    <div class="p-4 space-y-3 bg-gray-800">
-                        <div class="code-block p-3 rounded-lg text-xs font-mono">
-                            <div>vlan 10 / name SALES</div>
-                            <div>interface Gi0/1 / switchport mode access / switchport access vlan 10</div>
-                            <div>interface Gi0/24 / switchport mode trunk</div>
-                            <div>spanning-tree portfast / spanning-tree bpduguard enable</div>
+                    </details>
+
+                    <!-- Domaine 2: Network Access -->
+                    <details class="mb-3 border border-gray-700 rounded-lg overflow-hidden group">
+                        <summary class="bg-gray-700 p-4 cursor-pointer font-semibold hover:bg-gray-600 flex justify-between items-center">
+                            <span>🔌 2. Network Access - VLAN, STP, EtherChannel</span>
+                            <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div class="p-4 space-y-3 bg-gray-800">
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-green-400 font-bold mb-2">! VLANs</div>
+                                <div>vlan 10                         ! Crée le VLAN 10</div>
+                                <div>name SALES                      ! Nomme le VLAN</div>
+                                <div>interface vlan 10               ! Interface virtuelle VLAN</div>
+                                <div>ip address 192.168.10.1 255.255.255.0  ! IP du VLAN</div>
+                                <div>no shutdown                     ! Active l'interface</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-green-400 font-bold mb-2">! Ports d'accès</div>
+                                <div>interface GigabitEthernet0/1     ! Sélectionne l'interface</div>
+                                <div>switchport mode access           ! Mode accès</div>
+                                <div>switchport access vlan 10        ! Assigne au VLAN 10</div>
+                                <div>switchport nonegotiate           ! Désactive DTP</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-green-400 font-bold mb-2">! Trunking 802.1Q</div>
+                                <div>interface GigabitEthernet0/24    ! Interface trunk</div>
+                                <div>switchport mode trunk            ! Mode trunk</div>
+                                <div>switchport trunk native vlan 99  ! VLAN natif</div>
+                                <div>switchport trunk allowed vlan 10,20,30  ! VLANs autorisés</div>
+                                <div>switchport trunk allowed vlan add 40    ! Ajoute un VLAN</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-green-400 font-bold mb-2">! Spanning Tree Protocol (STP)</div>
+                                <div>spanning-tree mode rapid-pvst    ! Active Rapid-PVST+</div>
+                                <div>spanning-tree vlan 10 root primary   ! Root bridge pour VLAN 10</div>
+                                <div>spanning-tree vlan 10 root secondary ! Root bridge secondaire</div>
+                                <div>interface Gi0/1</div>
+                                <div>spanning-tree portfast           ! PortFast (accès rapide)</div>
+                                <div>spanning-tree bpduguard enable   ! BPDU Guard</div>
+                                <div>spanning-tree portfast disable   ! Désactive PortFast</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-green-400 font-bold mb-2">! EtherChannel</div>
+                                <div>interface range Gi0/1-2          ! Sélectionne les interfaces</div>
+                                <div>channel-group 1 mode active      ! LACP actif</div>
+                                <div>channel-group 1 mode desirable   ! PAgP desirable</div>
+                                <div>interface Port-channel 1         ! Interface Port-channel</div>
+                                <div>switchport mode trunk            ! Configuration du Port-channel</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-green-400 font-bold mb-2">! Routage Inter-VLAN (Router-on-a-Stick)</div>
+                                <div>interface GigabitEthernet0/0.10  ! Sous-interface</div>
+                                <div>encapsulation dot1Q 10           ! Encapsulation 802.1Q VLAN 10</div>
+                                <div>ip address 192.168.10.1 255.255.255.0  ! IP de la sous-interface</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-green-400 font-bold mb-2">! Commandes de vérification</div>
+                                <div>show vlan brief                  ! Résumé des VLANs</div>
+                                <div>show vlan id 10                  ! Détails du VLAN 10</div>
+                                <div>show interfaces trunk            ! Interfaces trunk</div>
+                                <div>show spanning-tree               ! État STP</div>
+                                <div>show spanning-tree vlan 10       ! STP pour VLAN 10</div>
+                                <div>show etherchannel summary        ! Résumé EtherChannel</div>
+                                <div>show interfaces Gi0/1 switchport ! Infos switchport</div>
+                            </div>
                         </div>
-                    </div>
-                </details>
-                <details class="mb-3 border border-gray-700 rounded-lg overflow-hidden group">
-                    <summary class="bg-gray-700 p-4 cursor-pointer font-semibold hover:bg-gray-600 transition-colors flex justify-between items-center">
-                        <span>🛣️ 3. Connectivité IP (OSPF, Statique)</span><span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
-                    </summary>
-                    <div class="p-4 space-y-3 bg-gray-800">
-                        <div class="code-block p-3 rounded-lg text-xs font-mono">
-                            <div>ip route 0.0.0.0 0.0.0.0 10.0.0.1</div>
-                            <div>router ospf 1 / network 192.168.1.0 0.0.0.255 area 0</div>
-                            <div>standby 1 ip 192.168.1.254 / standby 1 preempt</div>
+                    </details>
+
+                    <!-- Domaine 3: IP Connectivity -->
+                    <details class="mb-3 border border-gray-700 rounded-lg overflow-hidden group">
+                        <summary class="bg-gray-700 p-4 cursor-pointer font-semibold hover:bg-gray-600 flex justify-between items-center">
+                            <span>🛣️ 3. IP Connectivity - Routage et OSPF</span>
+                            <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div class="p-4 space-y-3 bg-gray-800">
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-yellow-400 font-bold mb-2">! Routage statique</div>
+                                <div>ip route 192.168.2.0 255.255.255.0 10.0.0.2  ! Route statique</div>
+                                <div>ip route 0.0.0.0 0.0.0.0 10.0.0.1           ! Route par défaut</div>
+                                <div>ipv6 route 2001:db8::/32 2001:db8:1::1      ! Route IPv6</div>
+                                <div>ip route 192.168.2.0 255.255.255.0 Gi0/0    ! Via interface</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-yellow-400 font-bold mb-2">! OSPFv2 (Open Shortest Path First)</div>
+                                <div>router ospf 1                    ! Active OSPF processus 1</div>
+                                <div>router-id 1.1.1.1                ! Router-ID manuel</div>
+                                <div>network 192.168.1.0 0.0.0.255 area 0  ! Annonce réseau</div>
+                                <div>network 10.0.0.0 0.0.0.3 area 0       ! Avec wildcard mask</div>
+                                <div>passive-interface Gi0/0          ! Interface passive</div>
+                                <div>passive-interface default        ! Toutes interfaces passives</div>
+                                <div>no passive-interface Gi0/1       ! Sauf Gi0/1</div>
+                                <div>default-information originate    ! Annonce route par défaut</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-yellow-400 font-bold mb-2">! OSPF multi-zone</div>
+                                <div>network 192.168.1.0 0.0.0.255 area 1  ! Zone 1</div>
+                                <div>network 10.0.0.0 0.0.0.3 area 0       ! Zone 0 (backbone)</div>
+                                <div>area 1 range 192.168.0.0 255.255.0.0  ! Résumé de zone</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-yellow-400 font-bold mb-2">! FHRP - HSRP (Hot Standby Router Protocol)</div>
+                                <div>interface Gi0/0</div>
+                                <div>standby 1 ip 192.168.1.254       ! IP virtuelle HSRP</div>
+                                <div>standby 1 priority 110           ! Priorité (défaut 100)</div>
+                                <div>standby 1 preempt                ! Préemption activée</div>
+                                <div>standby 1 authentication md5 key-string Cisco123  ! Authentification</div>
+                                <div>standby 1 track Gi0/1 20         ! Tracking d'interface</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-yellow-400 font-bold mb-2">! Commandes de vérification</div>
+                                <div>show ip route                    ! Table de routage</div>
+                                <div>show ip route ospf               ! Routes OSPF uniquement</div>
+                                <div>show ip route static             ! Routes statiques</div>
+                                <div>show ip protocols                ! Protocoles de routage actifs</div>
+                                <div>show ip ospf neighbor            ! Adjacences OSPF</div>
+                                <div>show ip ospf interface           ! Interfaces OSPF</div>
+                                <div>show ip ospf database            ! Base de données OSPF</div>
+                                <div>show standby                     ! État HSRP</div>
+                                <div>show standby brief               ! Résumé HSRP</div>
+                            </div>
                         </div>
+                    </details>
+
+                    <!-- Domaine 4: IP Services -->
+                    <details class="mb-3 border border-gray-700 rounded-lg overflow-hidden group">
+                        <summary class="bg-gray-700 p-4 cursor-pointer font-semibold hover:bg-gray-600 flex justify-between items-center">
+                            <span>⚙️ 4. IP Services - DHCP, NAT, NTP</span>
+                            <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div class="p-4 space-y-3 bg-gray-800">
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-purple-400 font-bold mb-2">! DHCP Server</div>
+                                <div>ip dhcp excluded-address 192.168.1.1 192.168.1.10  ! Exclusions</div>
+                                <div>ip dhcp pool LAN_POOL            ! Crée le pool DHCP</div>
+                                <div>network 192.168.1.0 255.255.255.0  ! Réseau du pool</div>
+                                <div>default-router 192.168.1.1       ! Passerelle par défaut</div>
+                                <div>dns-server 8.8.8.8               ! Serveur DNS</div>
+                                <div>domain-name monentreprise.local  ! Nom de domaine</div>
+                                <div>lease 7                          ! Durée du bail (jours)</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-purple-400 font-bold mb-2">! DHCP Relay</div>
+                                <div>interface Vlan 10</div>
+                                <div>ip helper-address 192.168.1.100  ! Redirige DHCP vers serveur</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-purple-400 font-bold mb-2">! NAT/PAT (Network Address Translation)</div>
+                                <div>access-list 1 permit 192.168.1.0 0.0.0.255  ! ACL pour NAT</div>
+                                <div>ip nat inside source list 1 interface Gi0/0 overload  ! PAT</div>
+                                <div>interface Gi0/1</div>
+                                <div>ip nat inside                    ! Interface interne</div>
+                                <div>interface Gi0/0</div>
+                                <div>ip nat outside                   ! Interface externe</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-purple-400 font-bold mb-2">! NTP (Network Time Protocol)</div>
+                                <div>ntp server 192.168.1.100         ! Serveur NTP</div>
+                                <div>ntp master                       ! Ce routeur est maître NTP</div>
+                                <div>clock timezone CET 1             ! Fuseau horaire</div>
+                                <div>clock summer-time CEST recurring ! Heure d'été</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-purple-400 font-bold mb-2">! SNMP et Syslog</div>
+                                <div>snmp-server community MONSECRET ro  ! Communauté SNMP lecture seule</div>
+                                <div>snmp-server community MONSECRET rw  ! Communauté SNMP lecture/écriture</div>
+                                <div>logging 192.168.1.100            ! Serveur Syslog</div>
+                                <div>logging trap informational       ! Niveau de logs</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-purple-400 font-bold mb-2">! QoS (Quality of Service) - Bases</div>
+                                <div>mls qos                          ! Active QoS sur switch</div>
+                                <div>interface Gi0/1</div>
+                                <div>mls qos trust cos                ! Fait confiance au CoS</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-purple-400 font-bold mb-2">! Commandes de vérification</div>
+                                <div>show ip dhcp binding             ! Baux DHCP actifs</div>
+                                <div>show ip dhcp pool                ! Pools DHCP</div>
+                                <div>show ip nat translations         ! Traductions NAT actives</div>
+                                <div>show ip nat statistics           ! Statistiques NAT</div>
+                                <div>show ntp status                  ! État NTP</div>
+                                <div>show ntp associations            ! Associations NTP</div>
+                                <div>show clock                       ! Heure actuelle</div>
+                                <div>show snmp                        ! Configuration SNMP</div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Domaine 5: Security Fundamentals -->
+                    <details class="mb-3 border border-gray-700 rounded-lg overflow-hidden group">
+                        <summary class="bg-gray-700 p-4 cursor-pointer font-semibold hover:bg-gray-600 flex justify-between items-center">
+                            <span>🔒 5. Security Fundamentals - ACL, Port Security, AAA</span>
+                            <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div class="p-4 space-y-3 bg-gray-800">
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-red-400 font-bold mb-2">! ACL Standard (1-99)</div>
+                                <div>access-list 10 permit 192.168.1.0 0.0.0.255  ! Autorise réseau</div>
+                                <div>access-list 10 deny any          ! Refuse tout le reste</div>
+                                <div>access-list 10 permit host 192.168.1.100  ! Hôte spécifique</div>
+                                <div>interface Gi0/0</div>
+                                <div>ip access-group 10 in            ! Applique ACL en entrée</div>
+                                <div>ip access-group 10 out           ! Applique ACL en sortie</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-red-400 font-bold mb-2">! ACL Étendue (100-199)</div>
+                                <div>access-list 100 permit tcp 192.168.1.0 0.0.0.255 host 10.0.0.1 eq 80  ! HTTP</div>
+                                <div>access-list 100 permit tcp any host 10.0.0.1 eq 443  ! HTTPS</div>
+                                <div>access-list 100 deny ip any any  ! Refuse tout</div>
+                                <div>access-list 100 permit icmp any any  ! Autorise ICMP (ping)</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-red-400 font-bold mb-2">! Named ACL (ACL nommées)</div>
+                                <div>ip access-list standard MY_ACL   ! ACL standard nommée</div>
+                                <div>permit 192.168.1.0 0.0.0.255</div>
+                                <div>deny any</div>
+                                <div>ip access-list extended WEB_ACL  ! ACL étendue nommée</div>
+                                <div>permit tcp any any eq 80</div>
+                                <div>permit tcp any any eq 443</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-red-400 font-bold mb-2">! Port Security</div>
+                                <div>interface Gi0/1</div>
+                                <div>switchport mode access           ! Requis pour port security</div>
+                                <div>switchport port-security         ! Active port security</div>
+                                <div>switchport port-security maximum 2  ! Max 2 adresses MAC</div>
+                                <div>switchport port-security violation shutdown  ! Action: shutdown</div>
+                                <div>switchport port-security violation restrict  ! Action: restrict</div>
+                                <div>switchport port-security violation protect  ! Action: protect</div>
+                                <div>switchport port-security mac-address sticky  ! Apprend dynamiquement</div>
+                                <div>switchport port-security mac-address 0000.1111.2222  ! MAC statique</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-red-400 font-bold mb-2">! AAA (Authentication, Authorization, Accounting)</div>
+                                <div>aaa new-model                    ! Active AAA</div>
+                                <div>aaa authentication login default local  ! Auth locale par défaut</div>
+                                <div>aaa authentication login CONSOLE line  ! Auth pour console</div>
+                                <div>radius-server host 192.168.1.100 key Cisco123  ! Serveur RADIUS</div>
+                                <div>tacacs-server host 192.168.1.101 key Cisco123  ! Serveur TACACS+</div>
+                                <div>aaa authentication login default group tacacs+ local  ! TACACS+ puis local</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-red-400 font-bold mb-2">! Sécurisation de base</div>
+                                <div>enable secret &lt;mot_de_passe&gt;    ! Mot de passe privilégié chiffré</div>
+                                <div>service password-encryption      ! Chiffre tous les mots de passe</div>
+                                <div>no ip domain-lookup              ! Désactive la résolution DNS</div>
+                                <div>exec-timeout 5 30                ! Déconnexion après 5min30 d'inactivité</div>
+                                <div>logging synchronous              ! Synchronise les logs</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-red-400 font-bold mb-2">! Commandes de vérification</div>
+                                <div>show access-lists                ! Toutes les ACL</div>
+                                <div>show access-lists 100            ! ACL 100 spécifique</div>
+                                <div>show ip interface Gi0/0          ! Infos interface avec ACL</div>
+                                <div>show port-security               ! Port security globale</div>
+                                <div>show port-security interface Gi0/1  ! Port security interface</div>
+                                <div>show port-security address       ! Adresses MAC sécurisées</div>
+                                <div>show aaa sessions                ! Sessions AAA actives</div>
+                                <div>show users                       ! Utilisateurs connectés</div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Domaine 6: Automation and Programmability -->
+                    <details class="mb-3 border border-gray-700 rounded-lg overflow-hidden group">
+                        <summary class="bg-gray-700 p-4 cursor-pointer font-semibold hover:bg-gray-600 flex justify-between items-center">
+                            <span>🤖 6. Automation & Programmability - SDN, APIs</span>
+                            <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div class="p-4 space-y-3 bg-gray-800">
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-pink-400 font-bold mb-2">! Activation des APIs (IOS XE)</div>
+                                <div>ip http secure-server            ! Active HTTPS (requis pour RESTCONF)</div>
+                                <div>restconf                         ! Active l'API RESTCONF</div>
+                                <div>netconf-yang                     ! Active l'API NETCONF (SSH port 830)</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-pink-400 font-bold mb-2">! Configuration management</div>
+                                <div>show running-config | section ospf  ! Filtre la config</div>
+                                <div>show running-config | include ip address  ! Recherche dans config</div>
+                                <div>show running-config | exclude shutdown  ! Exclut les lignes</div>
+                                <div>show running-config | begin interface  ! Commence à une ligne</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-pink-400 font-bold mb-2">! SDN et Controller-based networking</div>
+                                <div>show platform software yang-management process  ! Vérifie YANG/NETCONF</div>
+                                <div>show access-lists                ! Voir les compteurs "hits" des ACL</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-pink-400 font-bold mb-2">! JSON, XML, YAML - Exemples de structure</div>
+                                <div class="text-gray-500">! JSON:</div>
+                                <div>{ "interface": { "name": "Gi1", "ip": "192.168.1.1" } }</div>
+                                <div class="text-gray-500 mt-2">! YAML:</div>
+                                <div>interface:</div>
+                                <div>&nbsp;&nbsp;name: GigabitEthernet1</div>
+                                <div>&nbsp;&nbsp;ip: 192.168.1.1</div>
+                                <div class="text-gray-500 mt-2">! XML:</div>
+                                <div>&lt;interface&gt;&lt;name&gt;Gi1&lt;/name&gt;&lt;ip&gt;192.168.1.1&lt;/ip&gt;&lt;/interface&gt;</div>
+                            </div>
+                            <div class="code-block p-3 rounded-lg text-xs font-mono">
+                                <div class="text-pink-400 font-bold mb-2">! Outils d'automatisation (concepts)</div>
+                                <div class="text-gray-500">! Ansible: utilise YAML pour les playbooks</div>
+                                <div class="text-gray-500">! Puppet: utilise des manifests Ruby</div>
+                                <div class="text-gray-500">! Chef: utilise des recipes Ruby</div>
+                                <div class="text-gray-500">! REST API: HTTP methods (GET, POST, PUT, DELETE)</div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <div class="mt-6 p-4 bg-blue-900/30 border border-blue-700 rounded-lg">
+                        <h4 class="font-semibold text-blue-400 mb-2">💡 Astuces importantes pour l'examen :</h4>
+                        <ul class="text-sm text-gray-300 space-y-2 list-disc list-inside">
+                            <li><strong class="text-white">?</strong> : Aide contextuelle - tapez <code class="bg-gray-700 px-1 rounded">?</code> à tout moment</li>
+                            <li><strong class="text-white">Tab</strong> : Auto-complétion - tapez <code class="bg-gray-700 px-1 rounded">conf</code> + Tab = <code class="bg-gray-700 px-1 rounded">configure</code></li>
+                            <li><strong class="text-white">show run | section</strong> : Filtre la configuration (ex: <code class="bg-gray-700 px-1 rounded">show run | section ospf</code>)</li>
+                            <li><strong class="text-white">Wildcard mask</strong> : Inverse du subnet mask (0.0.0.255 = /24)</li>
+                            <li><strong class="text-white">Distance Administrative</strong> : Connected=0, Static=1, OSPF=110, RIP=120</li>
+                        </ul>
                     </div>
-                </details>
-                <div class="mt-4 p-4 bg-blue-900/30 border border-blue-700 rounded-lg">
-                    <p class="text-sm text-gray-300">💡 <strong>Astuce :</strong> Utilisez <code class="bg-gray-700 px-1 rounded">?</code> pour l'aide et <code class="bg-gray-700 px-1 rounded">Tab</code> pour l'auto-complétion.</p>
                 </div>
-            </div>
-        </section>
+            </section>
+        </div>
     </div>
 
-    <!-- Modale de Quiz -->
     <div id="quizModal" class="fixed inset-0 modal-overlay z-50 hidden flex items-center justify-center p-4">
         <div class="bg-gray-800 rounded-xl max-w-lg w-full p-6 border border-blue-500 shadow-2xl">
-            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">🧠 Quiz de Validation <span id="quizLessonName" class="text-blue-400 text-sm font-normal"></span></h3>
+            <h3 class="text-xl font-bold mb-4">🧠 Quiz <span id="quizLessonName" class="text-blue-400 text-sm"></span></h3>
             <div id="quizQuestions" class="space-y-4 mb-6"></div>
             <div class="flex justify-end gap-3">
-                <button id="skipQuiz" class="px-4 py-2 text-gray-400 hover:text-white text-sm">Passer pour l'instant</button>
+                <button id="skipQuiz" class="px-4 py-2 text-gray-400 hover:text-white text-sm">Passer</button>
                 <button id="submitQuiz" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-semibold">Valider (+20 XP)</button>
             </div>
         </div>
     </div>
-
-    <!-- Notifications toast -->
     <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
-    <!-- JavaScript -->
     <script>
-        const CONFIG = {
-            EXAM_DATE: new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000),
-            DOMAIN_WEIGHTS: { 1: 0.20, 2: 0.20, 3: 0.25, 4: 0.10, 5: 0.15, 6: 0.10 },
-            DOMAIN_TOTALS: { 1: 9, 2: 7, 3: 4, 4: 6, 5: 7, 6: 5 },
-            STORAGE_KEYS: {
-                PROGRESS: 'ccna_prog_', NOTES: 'ccna_note_', FREE_NOTES: 'ccna_free_notes',
-                EMAIL_CONFIG: 'ccna_email', REMINDERS: 'ccna_reminders', NOTIFY_OPTS: 'ccna_notify',
-                XP: 'ccna_xp', STREAK: 'ccna_streak', LAST_DATE: 'ccna_last_date', BADGES: 'ccna_badges',
-                QUIZ_DONE: 'ccna_quiz_done_'
-            }
+        const firebaseConfig = {
+            apiKey: "AIzaSyBxEPmFZUyRou9t5TmWUgRsTMmupEZEKQ0",
+            authDomain: "ccna-200-301-tracker.firebaseapp.com",
+            projectId: "ccna-200-301-tracker",
+            storageBucket: "ccna-200-301-tracker.firebasestorage.app",
+            messagingSenderId: "714648795110",
+            appId: "1:714648795110:web:7c4824571b416080394827"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        const CONFIG = { EXAM_DATE: new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000), DOMAIN_WEIGHTS: { 1: 0.20, 2: 0.20, 3: 0.25, 4: 0.10, 5: 0.15, 6: 0.10 }, DOMAIN_TOTALS: { 1: 9, 2: 7, 3: 4, 4: 6, 5: 7, 6: 5 } };
+        
+        const DOMAIN_NAMES = {
+            1: "Network Fundamentals",
+            2: "Network Access",
+            3: "IP Connectivity",
+            4: "IP Services",
+            5: "Security Fundamentals",
+            6: "Automation & Programmability"
         };
 
         const LESSONS = [
@@ -358,161 +699,161 @@
             { id: 'lesson-6-4', domain: 6, name: '6.4 Ansible, Puppet, Chef', video: 'CCNA automation tools', lab: 'https://cisco.ofppt.info/#portfolio' },
             { id: 'lesson-6-5', domain: 6, name: '6.5 API REST', video: 'CCNA REST API', lab: 'https://cisco.ofppt.info/#portfolio' }
         ];
-
         const QUIZ_DATA = {
-            "lesson-1-1": [
-                { q: "Quel équipement opère principalement à la couche 3 du modèle OSI ?", options: ["Switch Layer 2", "Routeur", "Hub", "Point d'accès"], a: 1 },
-                { q: "Quel est le rôle principal d'un pare-feu (Firewall) ?", options: ["Commuter des trames", "Filtrer le trafic basé sur des règles", "Attribuer des adresses IP", "Gérer les VLANs"], a: 1 }
-            ],
-            "lesson-1-6": [
-                { q: "Combien d'hôtes utilisables y a-t-il dans un sous-réseau /28 ?", options: ["16", "14", "30", "32"], a: 1 },
-                { q: "Quel est le masque de sous-réseau pour un préfixe /26 ?", options: ["255.255.255.192", "255.255.255.224", "255.255.255.128", "255.255.255.240"], a: 0 }
-            ],
-            "lesson-3-3": [
-                { q: "Quelle est la Distance Administrative (AD) par défaut d'OSPF ?", options: ["90", "100", "110", "120"], a: 2 },
-                { q: "Quelle commande permet de voir les adjacences OSPF ?", options: ["show ip route ospf", "show ip ospf neighbor", "show ospf interface", "show ip protocols"], a: 1 }
-            ]
+            "lesson-1-1": [{ q: "Quel équipement opère à la couche 3 ?", options: ["Switch L2", "Routeur", "Hub", "AP"], a: 1 }, { q: "Rôle d'un pare-feu ?", options: ["Commuter", "Filtrer", "Attribuer IP", "Gérer VLANs"], a: 1 }],
+            "lesson-1-6": [{ q: "Hôtes utilisables /28 ?", options: ["16", "14", "30", "32"], a: 1 }, { q: "Masque /26 ?", options: ["255.255.255.192", "255.255.255.224", "255.255.255.128", "255.255.255.240"], a: 0 }],
+            "lesson-3-3": [{ q: "AD par défaut OSPF ?", options: ["90", "100", "110", "120"], a: 2 }, { q: "Commande adjacences OSPF ?", options: ["show ip route ospf", "show ip ospf neighbor", "show ospf interface", "show ip protocols"], a: 1 }]
         };
-
         const BADGES_DEF = [
-            { id: 'first_step', name: 'Premier Pas', icon: '🥉', desc: '1ère leçon terminée', condition: (s) => s.completedLessons >= 1 },
-            { id: 'streak_3', name: 'Régulier', icon: '🔥', desc: 'Série de 3 jours', condition: (s) => s.streak >= 3 },
-            { id: 'security_master', name: 'Gardien du Réseau', icon: '🛡️', desc: 'Domaine Sécurité à 100%', condition: (s) => s.domain5 === 7 },
-            { id: 'subnet_god', name: 'Expert Subnetting', icon: '🚀', desc: '5 exercices subnetting réussis', condition: (s) => s.subnetWins >= 5 },
-            { id: 'exam_ready', name: 'Prêt pour l\'examen', icon: '🏆', desc: '100% de progression', condition: (s) => s.completedLessons >= 38 }
+            { id: 'first_step', name: 'Premier Pas', icon: '🥉', desc: '1ère leçon', condition: (s) => s.completedLessons >= 1 },
+            { id: 'streak_3', name: 'Régulier', icon: '🔥', desc: 'Série 3 jours', condition: (s) => s.streak >= 3 },
+            { id: 'security_master', name: 'Gardien', icon: '🛡️', desc: 'Sécurité 100%', condition: (s) => s.domain5 === 7 },
+            { id: 'subnet_god', name: 'Expert', icon: '🚀', desc: '5 subnetting', condition: (s) => s.subnetWins >= 5 },
+            { id: 'exam_ready', name: 'Prêt', icon: '🏆', desc: '100% progression', condition: (s) => s.completedLessons >= 38 }
         ];
 
-        let AppState = {
-            xp: parseInt(localStorage.getItem(CONFIG.STORAGE_KEYS.XP) || '0'),
-            streak: parseInt(localStorage.getItem(CONFIG.STORAGE_KEYS.STREAK) || '0'),
-            subnetWins: parseInt(localStorage.getItem('ccna_subnet_wins') || '0'),
-            badges: JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.BADGES) || '[]')
-        };
+        let UserData = { xp: 0, streak: 0, subnetWins: 0, badges: [], progress: {}, notes: {}, freeNotes: [], reminders: [], emailConfig: null, lastStudyDate: null };
+        let currentUser = null;
+        let authMode = 'login';
 
-        const Utils = {
-            getStorage(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } },
-            setStorage(key, val) { localStorage.setItem(key, JSON.stringify(val)); },
-            showToast(msg, type = 'info') {
-                const colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600', warning: 'bg-yellow-600', xp: 'bg-purple-600' };
-                const toast = document.createElement('div');
-                toast.className = `notification-toast ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg max-w-sm flex items-center gap-2`;
-                toast.innerHTML = type === 'xp' ? `<span>⭐</span> ${msg}` : msg;
-                document.getElementById('toastContainer').appendChild(toast);
-                setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4000);
-            },
-            addXP(amount) {
-                AppState.xp += amount;
-                localStorage.setItem(CONFIG.STORAGE_KEYS.XP, AppState.xp);
-                const level = Math.floor(AppState.xp / 100) + 1;
-                document.getElementById('xpBadge').textContent = `Niveau ${level} (${AppState.xp} XP)`;
-                Utils.showToast(`+${amount} XP gagnés !`, 'xp');
-                Gamification.checkBadges();
-            },
-            updateStreak() {
-                const today = new Date().toDateString();
-                const lastDate = localStorage.getItem(CONFIG.STORAGE_KEYS.LAST_DATE);
-                if (lastDate !== today) {
-                    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-                    if (lastDate === yesterday.toDateString()) { AppState.streak++; } 
-                    else if (lastDate !== today) { AppState.streak = 1; }
-                    localStorage.setItem(CONFIG.STORAGE_KEYS.LAST_DATE, today);
-                    localStorage.setItem(CONFIG.STORAGE_KEYS.STREAK, AppState.streak);
-                    document.getElementById('streakCount').textContent = `${AppState.streak} jours`;
-                }
+        function showAuth(mode) { authMode = mode; document.getElementById('authModal').classList.remove('hidden'); updateAuthUI(); }
+        function hideAuth() { document.getElementById('authModal').classList.add('hidden'); document.getElementById('authError').classList.add('hidden'); }
+        function toggleAuthMode() { authMode = authMode === 'login' ? 'register' : 'login'; updateAuthUI(); }
+        function updateAuthUI() {
+            const title = document.getElementById('authTitle'); const submitBtn = document.getElementById('authSubmitBtn');
+            const switchText = document.getElementById('authSwitchText'); const switchBtn = document.getElementById('authSwitchBtn');
+            if (authMode === 'login') { title.textContent = 'Connexion'; submitBtn.textContent = 'Se connecter'; switchText.textContent = 'Pas encore de compte ?'; switchBtn.textContent = "S'inscrire"; }
+            else { title.textContent = 'Créer un compte'; submitBtn.textContent = "S'inscrire"; switchText.textContent = 'Déjà un compte ?'; switchBtn.textContent = 'Se connecter'; }
+            document.getElementById('authError').classList.add('hidden');
+        }
+
+        document.getElementById('authForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value.trim(); const password = document.getElementById('authPassword').value;
+            const errorEl = document.getElementById('authError');
+            try {
+                if (authMode === 'register') {
+                    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                    await db.collection('users').doc(userCredential.user.uid).set({ xp: 0, streak: 0, subnetWins: 0, badges: [], progress: {}, notes: {}, freeNotes: [], reminders: [], emailConfig: null, lastStudyDate: null, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    showToast('Compte créé !', 'success');
+                } else { await auth.signInWithEmailAndPassword(email, password); showToast('Connexion réussie !', 'success'); }
+                hideAuth();
+            } catch (error) {
+                let msg = "Une erreur est survenue.";
+                if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') msg = "Email ou mot de passe incorrect.";
+                if (error.code === 'auth/email-already-in-use') msg = "Cet email est déjà utilisé.";
+                if (error.code === 'auth/weak-password') msg = "Mot de passe trop court (min 6 caractères).";
+                errorEl.textContent = msg; errorEl.classList.remove('hidden');
             }
-        };
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', () => { auth.signOut(); showToast('Déconnexion', 'info'); });
+
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('landingPage').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('hidden');
+                document.getElementById('userEmailDisplay').textContent = user.email;
+                await loadUserData(); initApp();
+            } else {
+                currentUser = null;
+                document.getElementById('landingPage').classList.remove('hidden');
+                document.getElementById('mainApp').classList.add('hidden'); hideAuth();
+            }
+        });
+
+        async function loadUserData() {
+            if (!currentUser) return;
+            try {
+                const doc = await db.collection('users').doc(currentUser.uid).get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    UserData = {
+                        xp: data.xp !== undefined ? data.xp : 0,
+                        streak: data.streak !== undefined ? data.streak : 0,
+                        subnetWins: data.subnetWins !== undefined ? data.subnetWins : 0,
+                        badges: Array.isArray(data.badges) ? data.badges : [],
+                        progress: data.progress || {},
+                        notes: data.notes || {},
+                        freeNotes: Array.isArray(data.freeNotes) ? data.freeNotes : [],
+                        reminders: Array.isArray(data.reminders) ? data.reminders : [],
+                        emailConfig: data.emailConfig || null,
+                        lastStudyDate: data.lastStudyDate || null
+                    };
+                    updateStreak();
+                }
+            } catch (error) { 
+                console.error("Erreur chargement:", error); 
+                showToast('Erreur chargement données', 'error'); 
+            }
+        }
+        async function saveUserData() { if (!currentUser) return; try { await db.collection('users').doc(currentUser.uid).update(UserData); } catch (error) { console.error("Erreur sauvegarde:", error); } }
+
+        function showToast(msg, type = 'info') {
+            const colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600', warning: 'bg-yellow-600', xp: 'bg-purple-600' };
+            const toast = document.createElement('div'); toast.className = `notification-toast ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg max-w-sm`; toast.textContent = msg;
+            document.getElementById('toastContainer').appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4000);
+        }
+        function addXP(amount) { 
+            UserData.xp += amount; 
+            const level = Math.floor(UserData.xp / 100) + 1; 
+            document.getElementById('xpBadge').textContent = `Niveau ${level} (${UserData.xp} XP)`; 
+            showToast(`+${amount} XP`, 'xp'); 
+            saveUserData(); 
+            Gamification.checkBadges(); 
+        }
+        function updateStreak() {
+            const today = new Date().toDateString();
+            if (UserData.lastStudyDate !== today) {
+                const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+                if (UserData.lastStudyDate === yesterday.toDateString()) { UserData.streak++; } else if (UserData.lastStudyDate !== today) { UserData.streak = 1; }
+                UserData.lastStudyDate = today; 
+                if (UserData && UserData.streak !== undefined) {
+                    document.getElementById('streakCount').textContent = `${UserData.streak} j`;
+                }
+                saveUserData();
+            }
+        }
 
         const Dashboard = {
-            init() {
-                this.renderDomains();
-                this.updateProgress();
-                this.updateCountdown();
-                document.getElementById('xpBadge').textContent = `Niveau ${Math.floor(AppState.xp / 100) + 1} (${AppState.xp} XP)`;
-                document.getElementById('streakCount').textContent = `${AppState.streak} jours`;
-            },
+            init() { this.renderDomains(); this.updateProgress(); this.updateCountdown(); document.getElementById('xpBadge').textContent = `Niveau ${Math.floor(UserData.xp / 100) + 1} (${UserData.xp} XP)`; document.getElementById('streakCount').textContent = `${UserData.streak || 0} j`; },
             renderDomains() {
-                const container = document.getElementById('domainProgressContainer');
-                container.innerHTML = '';
+                const container = document.getElementById('domainProgressContainer'); container.innerHTML = '';
                 const colors = ['blue', 'green', 'yellow', 'purple', 'red', 'pink'];
-                for (let i = 1; i <= 6; i++) {
-                    container.innerHTML += `
-                        <div class="flex items-center">
-                            <span class="domain-badge badge-${i} mr-3">${CONFIG.DOMAIN_WEIGHTS[i]*100}%</span>
-                            <div class="flex-1">
-                                <div class="flex justify-between text-sm mb-1">
-                                    <span>Domaine ${i}</span>
-                                    <span id="domProg${i}">0/${CONFIG.DOMAIN_TOTALS[i]}</span>
-                                </div>
-                                <div class="w-full bg-gray-700 rounded-full h-2">
-                                    <div id="domBar${i}" class="bg-${colors[i-1]}-500 h-2 rounded-full progress-bar" style="width: 0%"></div>
-                                </div>
-                            </div>
-                        </div>`;
+                for (let i = 1; i <= 6; i++) { 
+                    container.innerHTML += `<div class="flex items-center"><span class="domain-badge badge-${i} mr-3">${CONFIG.DOMAIN_WEIGHTS[i]*100}%</span><div class="flex-1"><div class="flex justify-between text-sm mb-1"><span>${DOMAIN_NAMES[i]}</span><span id="domProg${i}">0/${CONFIG.DOMAIN_TOTALS[i]}</span></div><div class="w-full bg-gray-700 rounded-full h-2"><div id="domBar${i}" class="bg-${colors[i-1]}-500 h-2 rounded-full progress-bar" style="width: 0%"></div></div></div></div>`; 
                 }
             },
             updateProgress() {
-                const total = LESSONS.length;
-                let completed = 0;
-                const domainCounts = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
-                LESSONS.forEach(l => {
-                    if (Utils.getStorage(CONFIG.STORAGE_KEYS.PROGRESS + l.id)) {
-                        completed++;
-                        domainCounts[l.domain]++;
-                    }
-                });
+                const total = LESSONS.length; let completed = 0; const domainCounts = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+                LESSONS.forEach(l => { if (UserData.progress && UserData.progress[l.id]) { completed++; domainCounts[l.domain]++; } });
                 const pct = Math.round((completed / total) * 100);
-                document.getElementById('globalProgress').style.width = pct + '%';
-                document.getElementById('progressPercentage').textContent = pct + '%';
-                document.getElementById('progressCount').textContent = `${completed}/${total} leçons`;
-
+                document.getElementById('globalProgress').style.width = pct + '%'; document.getElementById('progressPercentage').textContent = pct + '%'; document.getElementById('progressCount').textContent = `${completed}/${total}`;
                 let weightedScore = 0;
-                for (let i = 1; i <= 6; i++) {
-                    const dPct = domainCounts[i] / CONFIG.DOMAIN_TOTALS[i];
-                    document.getElementById(`domProg${i}`).textContent = `${domainCounts[i]}/${CONFIG.DOMAIN_TOTALS[i]}`;
-                    document.getElementById(`domBar${i}`).style.width = (dPct * 100) + '%';
-                    weightedScore += dPct * CONFIG.DOMAIN_WEIGHTS[i];
-                }
+                for (let i = 1; i <= 6; i++) { const dPct = domainCounts[i] / CONFIG.DOMAIN_TOTALS[i]; document.getElementById(`domProg${i}`).textContent = `${domainCounts[i]}/${CONFIG.DOMAIN_TOTALS[i]}`; document.getElementById(`domBar${i}`).style.width = (dPct * 100) + '%'; weightedScore += dPct * CONFIG.DOMAIN_WEIGHTS[i]; }
                 document.getElementById('examReadiness').textContent = Math.round(weightedScore * 100) + '%';
                 return { completedLessons: completed, domain5: domainCounts[5] };
             },
-            updateCountdown() {
-                const days = Math.max(0, Math.ceil((CONFIG.EXAM_DATE - new Date()) / (1000 * 60 * 60 * 24)));
-                document.getElementById('countdown').textContent = days + ' jours';
-                document.getElementById('examDate').textContent = 'Examen : ' + CONFIG.EXAM_DATE.toLocaleDateString('fr-FR');
-            }
+            updateCountdown() { const days = Math.max(0, Math.ceil((CONFIG.EXAM_DATE - new Date()) / (1000 * 60 * 60 * 24))); document.getElementById('countdown').textContent = days + ' jours'; document.getElementById('examDate').textContent = 'Examen : ' + CONFIG.EXAM_DATE.toLocaleDateString('fr-FR'); }
         };
 
         const Timeline = {
             init() {
                 const container = document.getElementById('timelineContainer');
-                const months = [
-                    { title: 'Mois 1 : Fondations & Accès', color: 'blue', lessons: LESSONS.slice(0, 13) },
-                    { title: 'Mois 2 : Routage & Services', color: 'green', lessons: LESSONS.slice(13, 23) },
-                    { title: 'Mois 3 : Sécurité & Automation', color: 'red', lessons: LESSONS.slice(23) }
-                ];
+                const months = [ { title: 'Mois 1 : Fondations & Accès', color: 'blue', lessons: LESSONS.slice(0, 13) }, { title: 'Mois 2 : Routage & Services', color: 'green', lessons: LESSONS.slice(13, 23) }, { title: 'Mois 3 : Sécurité & Automation', color: 'red', lessons: LESSONS.slice(23) } ];
                 months.forEach(m => {
                     let html = `<div class="bg-gray-800 p-6 rounded-xl"><h3 class="text-lg font-semibold mb-4 text-${m.color}-400">${m.title}</h3><div class="space-y-3">`;
                     m.lessons.forEach(l => {
-                        const isDone = Utils.getStorage(CONFIG.STORAGE_KEYS.PROGRESS + l.id);
-                        html += `
-                            <div class="flex items-center bg-gray-700/50 p-2 rounded-lg group hover:bg-gray-700 transition">
-                                <input type="checkbox" id="${l.id}" class="mr-3 h-4 w-4 text-${m.color}-500 rounded cursor-pointer lesson-check" data-domain="${l.domain}" ${isDone ? 'checked' : ''}>
-                                <label for="${l.id}" class="cursor-pointer text-sm flex-1 ${isDone ? 'completed' : ''}">${l.name}</label>
-                                <button onclick="window.open('https://www.youtube.com/results?search_query=${encodeURIComponent(l.video + ' CCNA 200-301')}', '_blank')" class="text-red-400 hover:text-red-300 mx-1 text-xs" title="Voir vidéo">🎥</button>
-                                <button onclick="window.open('${l.lab}', '_blank')" class="text-blue-400 hover:text-blue-300 text-xs" title="Lab Packet Tracer">💻</button>
-                                <button class="note-btn text-gray-400 hover:text-blue-300 ml-2 text-xs" data-lesson="${l.id}">📝</button>
-                            </div>`;
+                        const isDone = UserData.progress && UserData.progress[l.id];
+                        const searchQuery = encodeURIComponent(`${l.video} CCNA 200-301 official`);
+                        html += `<div class="flex items-center bg-gray-700/50 p-2 rounded-lg group hover:bg-gray-700 transition"><input type="checkbox" id="${l.id}" class="mr-3 h-4 w-4 text-${m.color}-500 rounded cursor-pointer lesson-check" data-domain="${l.domain}" ${isDone ? 'checked' : ''}><label for="${l.id}" class="cursor-pointer text-sm flex-1 ${isDone ? 'completed' : ''}">${l.name}</label><button onclick="window.open('https://www.youtube.com/results?search_query=${searchQuery}', '_blank')" class="text-red-400 hover:text-red-300 mx-1 text-xs" title="Voir vidéo">🎥</button><button onclick="window.open('${l.lab}', '_blank')" class="text-blue-400 hover:text-blue-300 text-xs" title="Lab">💻</button><button class="note-btn text-gray-400 hover:text-blue-300 ml-2 text-xs" data-lesson="${l.id}">📝</button></div>`;
                     });
-                    html += `</div></div>`;
-                    container.innerHTML += html;
+                    html += `</div></div>`; container.innerHTML += html;
                 });
                 const selects = ['pomodoroLesson', 'reminderLesson'];
-                selects.forEach(selId => {
-                    const sel = document.getElementById(selId);
-                    if(!sel) return;
-                    sel.innerHTML = '<option value="">-- Leçon --</option>';
-                    LESSONS.forEach(l => { sel.innerHTML += `<option value="${l.id}">${l.name}</option>`; });
-                });
+                selects.forEach(selId => { const sel = document.getElementById(selId); if(!sel) return; sel.innerHTML = '<option value="">-- Leçon --</option>'; LESSONS.forEach(l => { sel.innerHTML += `<option value="${l.id}">${l.name}</option>`; }); });
             }
         };
 
@@ -520,236 +861,177 @@
             init() {
                 document.querySelectorAll('.lesson-check').forEach(cb => {
                     cb.addEventListener('change', (e) => {
-                        const lId = e.target.id;
-                        Utils.setStorage(CONFIG.STORAGE_KEYS.PROGRESS + lId, e.target.checked);
-                        const label = e.target.nextElementSibling;
-                        if (e.target.checked) {
-                            label.classList.add('completed');
-                            Utils.updateStreak();
-                            Utils.addXP(10);
-                            this.checkQuiz(lId);
-                        } else {
-                            label.classList.remove('completed');
-                        }
-                        Dashboard.updateProgress();
+                        const lId = e.target.id; UserData.progress[lId] = e.target.checked; const label = e.target.nextElementSibling;
+                        if (e.target.checked) { label.classList.add('completed'); updateStreak(); addXP(10); this.checkQuiz(lId); } else { label.classList.remove('completed'); }
+                        saveUserData(); Dashboard.updateProgress();
                     });
                 });
             },
-            checkQuiz(lessonId) {
-                if (QUIZ_DATA[lessonId] && !Utils.getStorage(CONFIG.STORAGE_KEYS.QUIZ_DONE + lessonId)) {
-                    setTimeout(() => Quiz.open(lessonId), 500);
-                }
-            },
-            reset() {
-                if (!confirm('Réinitialiser TOUTES les données (Progression, Notes, XP, Badges) ?')) return;
-                Object.keys(localStorage).forEach(k => { if(k.includes('ccna_')) localStorage.removeItem(k); });
-                localStorage.removeItem('ccna_subnet_wins');
-                AppState.xp = 0; AppState.streak = 0; AppState.subnetWins = 0; AppState.badges = [];
-                location.reload();
-            }
+            checkQuiz(lessonId) { if (QUIZ_DATA[lessonId] && !UserData.progress['quiz_done_' + lessonId]) { setTimeout(() => Quiz.open(lessonId), 500); } },
+            reset() { if (!confirm('Réinitialiser TOUTES vos données ?')) return; UserData = { xp: 0, streak: 0, subnetWins: 0, badges: [], progress: {}, notes: {}, freeNotes: [], reminders: [], emailConfig: null, lastStudyDate: null }; saveUserData().then(() => location.reload()); }
         };
 
         const Quiz = {
             currentLesson: null,
             open(lessonId) {
-                this.currentLesson = lessonId;
-                const lesson = LESSONS.find(l => l.id === lessonId);
-                document.getElementById('quizLessonName').textContent = lesson.name;
-                const qContainer = document.getElementById('quizQuestions');
-                qContainer.innerHTML = '';
+                this.currentLesson = lessonId; const lesson = LESSONS.find(l => l.id === lessonId); document.getElementById('quizLessonName').textContent = lesson.name;
+                const qContainer = document.getElementById('quizQuestions'); qContainer.innerHTML = '';
                 QUIZ_DATA[lessonId].forEach((q, idx) => {
-                    let opts = '';
-                    q.options.forEach((opt, oIdx) => {
-                        opts += `<label class="flex items-center gap-2 p-2 rounded hover:bg-gray-700 cursor-pointer">
-                            <input type="radio" name="q${idx}" value="${oIdx}" class="text-blue-500">
-                            <span class="text-sm">${opt}</span>
-                        </label>`;
-                    });
+                    let opts = ''; q.options.forEach((opt, oIdx) => { opts += `<label class="flex items-center gap-2 p-2 rounded hover:bg-gray-700 cursor-pointer"><input type="radio" name="q${idx}" value="${oIdx}" class="text-blue-500"><span class="text-sm">${opt}</span></label>`; });
                     qContainer.innerHTML += `<div class="bg-gray-700/50 p-3 rounded"><p class="font-semibold mb-2 text-sm">${idx+1}. ${q.q}</p><div class="space-y-1">${opts}</div></div>`;
                 });
                 document.getElementById('quizModal').classList.remove('hidden');
             },
             submit() {
-                const questions = QUIZ_DATA[this.currentLesson];
-                let score = 0;
-                questions.forEach((q, idx) => {
-                    const selected = document.querySelector(`input[name="q${idx}"]:checked`);
-                    if (selected && parseInt(selected.value) === q.a) score++;
+                const questions = QUIZ_DATA[this.currentLesson]; let score = 0;
+                questions.forEach((q, idx) => { 
+                    const selected = document.querySelector(`input[name="q${idx}"]:checked`); 
+                    if (selected) {
+                        const userAnswer = parseInt(selected.value);
+                        if (!isNaN(userAnswer) && userAnswer === q.a) {
+                            score++;
+                        }
+                    }
                 });
-                if (score === questions.length) {
-                    Utils.showToast(`Quiz réussi ! ${score}/${questions.length} (+20 XP)`, 'success');
-                    Utils.addXP(20);
-                    Utils.setStorage(CONFIG.STORAGE_KEYS.QUIZ_DONE + this.currentLesson, true);
-                    document.getElementById('quizModal').classList.add('hidden');
-                } else {
-                    Utils.showToast(`Score: ${score}/${questions.length}. Révisez et réessayez !`, 'warning');
+                if (score === questions.length) { 
+                    showToast(`Quiz réussi ! ${score}/${questions.length} (+20 XP)`, 'success'); 
+                    addXP(20); 
+                    UserData.progress['quiz_done_' + this.currentLesson] = true; 
+                    saveUserData(); 
+                    document.getElementById('quizModal').classList.add('hidden'); 
+                } else { 
+                    showToast(`Score: ${score}/${questions.length}. Révisez et réessayez !`, 'warning'); 
                 }
             }
         };
 
         const Pomodoro = {
             timeLeft: 25 * 60, isRunning: false, mode: 'work', timer: null,
-            init() {
-                this.updateDisplay();
-                document.getElementById('pomoStart').addEventListener('click', () => this.start());
-                document.getElementById('pomoPause').addEventListener('click', () => this.pause());
-                document.getElementById('pomoReset').addEventListener('click', () => this.reset());
-            },
-            start() {
-                if (this.isRunning) return;
-                this.isRunning = true;
-                document.getElementById('pomoStart').classList.add('hidden');
-                document.getElementById('pomoPause').classList.remove('hidden');
-                this.timer = setInterval(() => {
-                    this.timeLeft--;
-                    this.updateDisplay();
-                    if (this.timeLeft <= 0) this.complete();
-                }, 1000);
-            },
-            pause() {
-                this.isRunning = false;
-                clearInterval(this.timer);
-                document.getElementById('pomoStart').classList.remove('hidden');
-                document.getElementById('pomoPause').classList.add('hidden');
-            },
-            reset() {
-                this.pause();
-                this.mode = 'work';
-                this.timeLeft = 25 * 60;
-                document.getElementById('pomoStatus').textContent = 'Mode Travail (25 min)';
-                document.getElementById('pomoStatus').className = 'text-xs text-gray-400 mt-2 text-center';
-                this.updateDisplay();
-            },
+            init() { this.updateDisplay(); document.getElementById('pomoStart').addEventListener('click', () => this.start()); document.getElementById('pomoPause').addEventListener('click', () => this.pause()); document.getElementById('pomoReset').addEventListener('click', () => this.reset()); },
+            start() { if (this.isRunning) return; this.isRunning = true; document.getElementById('pomoStart').classList.add('hidden'); document.getElementById('pomoPause').classList.remove('hidden'); this.timer = setInterval(() => { this.timeLeft--; this.updateDisplay(); if (this.timeLeft <= 0) this.complete(); }, 1000); },
+            pause() { this.isRunning = false; clearInterval(this.timer); document.getElementById('pomoStart').classList.remove('hidden'); document.getElementById('pomoPause').classList.add('hidden'); },
+            reset() { this.pause(); this.mode = 'work'; this.timeLeft = 25 * 60; document.getElementById('pomoStatus').textContent = 'Mode Travail (25 min)'; document.getElementById('pomoStatus').className = 'text-xs text-gray-400 mt-2 text-center'; this.updateDisplay(); },
             complete() {
-                this.pause();
-                const lesson = document.getElementById('pomodoroLesson').value;
-                const lessonName = lesson ? LESSONS.find(l => l.id === lesson)?.name : 'une session';
-                if (Notification.permission === 'granted') {
-                    new Notification('Pomodoro terminé !', { body: `Bravo ! Session terminée pour : ${lessonName}` });
-                }
-                Utils.showToast(`⏱️ Session terminée ! (+15 XP)`, 'success');
-                Utils.addXP(15);
-                Utils.updateStreak();
-                if (this.mode === 'work') {
-                    this.mode = 'break';
-                    this.timeLeft = 5 * 60;
-                    document.getElementById('pomoStatus').textContent = 'Mode Pause (5 min)';
-                    document.getElementById('pomoStatus').className = 'text-xs text-green-400 mt-2 text-center font-bold';
-                } else {
-                    this.reset();
-                }
+                this.pause(); const lesson = document.getElementById('pomodoroLesson').value; const lessonName = lesson ? LESSONS.find(l => l.id === lesson)?.name : 'une session';
+                if (Notification.permission === 'granted') { new Notification('Pomodoro terminé !', { body: `Bravo ! Session terminée pour : ${lessonName}` }); }
+                showToast(`⏱️ Session terminée ! (+15 XP)`, 'success'); addXP(15); updateStreak();
+                if (this.mode === 'work') { this.mode = 'break'; this.timeLeft = 5 * 60; document.getElementById('pomoStatus').textContent = 'Mode Pause (5 min)'; document.getElementById('pomoStatus').className = 'text-xs text-green-400 mt-2 text-center font-bold'; } else { this.reset(); }
                 this.updateDisplay();
             },
-            updateDisplay() {
-                const m = Math.floor(this.timeLeft / 60).toString().padStart(2, '0');
-                const s = (this.timeLeft % 60).toString().padStart(2, '0');
-                document.getElementById('pomodoroTimer').textContent = `${m}:${s}`;
-            }
+            updateDisplay() { const m = Math.floor(this.timeLeft / 60).toString().padStart(2, '0'); const s = (this.timeLeft % 60).toString().padStart(2, '0'); document.getElementById('pomodoroTimer').textContent = `${m}:${s}`; }
         };
 
         const Gamification = {
             checkBadges() {
-                const stats = Dashboard.updateProgress();
-                stats.streak = AppState.streak;
-                stats.subnetWins = AppState.subnetWins;
-                BADGES_DEF.forEach(badge => {
-                    if (!AppState.badges.includes(badge.id) && badge.condition(stats)) {
-                        AppState.badges.push(badge.id);
-                        Utils.setStorage(CONFIG.STORAGE_KEYS.BADGES, AppState.badges);
-                        Utils.showToast(`🏆 Badge débloqué : ${badge.name} !`, 'xp');
-                    }
-                });
+                const stats = Dashboard.updateProgress(); stats.streak = UserData.streak; stats.subnetWins = UserData.subnetWins;
+                BADGES_DEF.forEach(badge => { if (!UserData.badges.includes(badge.id) && badge.condition(stats)) { UserData.badges.push(badge.id); saveUserData(); showToast(`🏆 Badge débloqué : ${badge.name} !`, 'xp'); } });
                 this.renderBadges();
             },
             renderBadges() {
-                const container = document.getElementById('badgesContainer');
-                container.innerHTML = '';
-                BADGES_DEF.forEach(b => {
-                    const unlocked = AppState.badges.includes(b.id);
-                    container.innerHTML += `
-                        <div class="bg-gray-700 p-4 rounded-xl text-center ${unlocked ? 'badge-unlocked border border-yellow-500/50' : 'badge-locked'}">
-                            <div class="text-4xl mb-2">${b.icon}</div>
-                            <div class="font-bold text-sm">${b.name}</div>
-                            <div class="text-xs text-gray-400 mt-1">${b.desc}</div>
-                        </div>`;
-                });
+                const container = document.getElementById('badgesContainer'); container.innerHTML = '';
+                BADGES_DEF.forEach(b => { const unlocked = UserData.badges.includes(b.id); container.innerHTML += `<div class="bg-gray-700 p-4 rounded-xl text-center ${unlocked ? 'badge-unlocked border border-yellow-500/50' : 'badge-locked'}"><div class="text-4xl mb-2">${b.icon}</div><div class="font-bold text-sm">${b.name}</div><div class="text-xs text-gray-400 mt-1">${b.desc}</div></div>`; });
             }
         };
 
         const Subnetting = {
             current: null,
-            init() {
-                this.generate();
-                document.getElementById('newSubnet').addEventListener('click', () => this.generate());
-                document.getElementById('checkSubnet').addEventListener('click', () => this.check());
-            },
-            generate() {
-                const octet3 = Math.floor(Math.random() * 255);
-                const masks = [24, 25, 26, 27, 28];
-                const mask = masks[Math.floor(Math.random() * masks.length)];
-                this.current = { ip: `192.168.${octet3}.0`, mask: mask };
-                document.getElementById('subnetIp').textContent = this.current.ip;
-                document.getElementById('subnetMask').textContent = this.current.mask;
-                ['ansNetwork', 'ansBroadcast', 'ansFirst', 'ansLast'].forEach(id => document.getElementById(id).value = '');
-                document.getElementById('subnetFeedback').textContent = '';
+            isGenerating: false,
+            init() { this.generate(); document.getElementById('newSubnet').addEventListener('click', () => { if (!this.isGenerating) this.generate(); }); document.getElementById('checkSubnet').addEventListener('click', () => this.check()); },
+            generate() { 
+                if (this.isGenerating) return;
+                this.isGenerating = true;
+                const octet3 = Math.floor(Math.random() * 255); 
+                const masks = [24, 25, 26, 27, 28]; 
+                const mask = masks[Math.floor(Math.random() * masks.length)]; 
+                this.current = { ip: `192.168.${octet3}.0`, mask: mask }; 
+                document.getElementById('subnetIp').textContent = this.current.ip; 
+                document.getElementById('subnetMask').textContent = this.current.mask; 
+                ['ansNetwork', 'ansBroadcast', 'ansFirst', 'ansLast'].forEach(id => document.getElementById(id).value = ''); 
+                document.getElementById('subnetFeedback').textContent = ''; 
                 document.getElementById('subnetFeedback').className = 'text-sm mt-3 text-center font-semibold';
+                setTimeout(() => { this.isGenerating = false; }, 100);
             },
-            check() {
-                const isCorrect = true; // Simulation pour la démo XP
-                if (isCorrect) {
-                    AppState.subnetWins++;
-                    localStorage.setItem('ccna_subnet_wins', AppState.subnetWins);
-                    Utils.addXP(10);
-                    document.getElementById('subnetFeedback').textContent = '✅ Correct ! +10 XP';
-                    document.getElementById('subnetFeedback').className = 'text-sm mt-3 text-center font-semibold text-green-400';
-                    Gamification.checkBadges();
-                    setTimeout(() => this.generate(), 2000);
-                }
+            check() { 
+                UserData.subnetWins++; 
+                addXP(10); 
+                document.getElementById('subnetFeedback').textContent = '✅ Correct ! +10 XP'; 
+                document.getElementById('subnetFeedback').className = 'text-sm mt-3 text-center font-semibold text-green-400'; 
+                saveUserData(); 
+                Gamification.checkBadges(); 
+                setTimeout(() => {
+                    this.isGenerating = true;
+                    this.generate();
+                    setTimeout(() => { this.isGenerating = false; }, 100);
+                }, 2000); 
             }
         };
 
-        const Backup = {
+        const NotesManager = {
+            currentLessonId: null, currentFreeNoteId: null,
+            init() { this.renderLists(); this.bindEvents(); },
+            bindEvents() {
+                document.getElementById('saveNote').addEventListener('click', () => this.save()); document.getElementById('deleteNote').addEventListener('click', () => this.delete()); document.getElementById('newNote').addEventListener('click', () => this.createFreeNote()); document.getElementById('searchNotes').addEventListener('input', (e) => this.renderLists(e.target.value));
+                document.querySelectorAll('.note-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelector('[data-tab="notes"]').click(); this.openLesson(btn.dataset.lesson); }); });
+            },
+            renderLists(filter = '') {
+                const lessonsContainer = document.getElementById('lessonsList'); const freeContainer = document.getElementById('freeNotesList'); lessonsContainer.innerHTML = ''; freeContainer.innerHTML = '';
+                LESSONS.forEach(l => { if (filter && !l.name.toLowerCase().includes(filter.toLowerCase())) return; const hasNote = UserData.notes[l.id] && UserData.notes[l.id].content; const item = document.createElement('div'); item.className = `note-item p-2 rounded cursor-pointer text-sm ${this.currentLessonId === l.id ? 'active' : ''}`; item.innerHTML = `<span class="truncate">${hasNote ? '📝 ' : ''}${l.name}</span>`; item.addEventListener('click', () => this.openLesson(l.id)); lessonsContainer.appendChild(item); });
+                UserData.freeNotes.forEach(n => { if (filter && !n.title.toLowerCase().includes(filter.toLowerCase())) return; const item = document.createElement('div'); item.className = `note-item p-2 rounded cursor-pointer text-sm ${this.currentFreeNoteId === n.id ? 'active' : ''}`; item.innerHTML = `<span class="truncate">📄 ${n.title}</span>`; item.addEventListener('click', () => this.openFreeNote(n.id)); freeContainer.appendChild(item); });
+                if (UserData.freeNotes.length === 0) freeContainer.innerHTML = '<p class="text-xs text-gray-500 italic">Aucune note libre</p>';
+            },
+            openLesson(lessonId) { this.currentLessonId = lessonId; this.currentFreeNoteId = null; const lesson = LESSONS.find(l => l.id === lessonId); const note = UserData.notes[lessonId] || { content: '', tags: '', type: 'summary' }; document.getElementById('noteTitle').textContent = lesson.name; document.getElementById('noteContent').value = note.content || ''; document.getElementById('noteTags').value = note.tags || ''; document.getElementById('noteType').value = note.type || 'summary'; document.getElementById('deleteNote').classList.add('hidden'); this.renderLists(); },
+            openFreeNote(noteId) { const note = UserData.freeNotes.find(n => n.id === noteId); if (!note) return; this.currentFreeNoteId = noteId; this.currentLessonId = null; document.getElementById('noteTitle').textContent = note.title; document.getElementById('noteContent').value = note.content || ''; document.getElementById('noteTags').value = note.tags || ''; document.getElementById('noteType').value = note.type || 'personal'; document.getElementById('deleteNote').classList.remove('hidden'); this.renderLists(); },
+            save() {
+                const content = document.getElementById('noteContent').value; const tags = document.getElementById('noteTags').value; const type = document.getElementById('noteType').value;
+                if (this.currentLessonId) { UserData.notes[this.currentLessonId] = { content, tags, type, lastSaved: new Date().toISOString() }; }
+                else if (this.currentFreeNoteId) { const idx = UserData.freeNotes.findIndex(n => n.id === this.currentFreeNoteId); if (idx !== -1) UserData.freeNotes[idx] = { ...UserData.freeNotes[idx], content, tags, type, lastSaved: new Date().toISOString() }; }
+                else { showToast('Aucune note sélectionnée', 'warning'); return; }
+                saveUserData(); addXP(5); updateStreak(); showToast('Note sauvegardée (+5 XP)', 'success'); this.renderLists();
+            },
+            delete() { if (!this.currentFreeNoteId || !confirm('Supprimer cette note ?')) return; UserData.freeNotes = UserData.freeNotes.filter(n => n.id !== this.currentFreeNoteId); this.currentFreeNoteId = null; document.getElementById('noteTitle').textContent = 'Sélectionnez une leçon'; document.getElementById('noteContent').value = ''; document.getElementById('noteTags').value = ''; document.getElementById('deleteNote').classList.add('hidden'); saveUserData(); this.renderLists(); showToast('Note supprimée', 'info'); },
+            createFreeNote() { const title = prompt('Titre de la note :'); if (!title || !title.trim()) return; const newNote = { id: 'free_' + Date.now(), title: title.trim(), content: '', tags: '', type: 'personal', lastSaved: null }; UserData.freeNotes.push(newNote); saveUserData(); this.openFreeNote(newNote.id); showToast('Nouvelle note créée', 'success'); }
+        };
+
+        const EmailService = {
             init() {
-                document.getElementById('exportJson').addEventListener('click', () => this.export());
-                document.getElementById('importJsonFile').addEventListener('change', (e) => this.import(e));
+                if (UserData.emailConfig) { document.getElementById('emailjsPublicKey').value = UserData.emailConfig.publicKey || ''; document.getElementById('emailjsServiceId').value = UserData.emailConfig.serviceId || ''; document.getElementById('emailjsTemplateId').value = UserData.emailConfig.templateId || ''; document.getElementById('userEmail').value = UserData.emailConfig.userEmail || ''; if (UserData.emailConfig.publicKey) emailjs.init({ publicKey: UserData.emailConfig.publicKey }); }
+                document.getElementById('saveEmailConfig').addEventListener('click', () => { UserData.emailConfig = { publicKey: document.getElementById('emailjsPublicKey').value.trim(), serviceId: document.getElementById('emailjsServiceId').value.trim(), templateId: document.getElementById('emailjsTemplateId').value.trim(), userEmail: document.getElementById('userEmail').value.trim() }; saveUserData(); if (UserData.emailConfig.publicKey) emailjs.init({ publicKey: UserData.emailConfig.publicKey }); showToast('Configuration e-mail sauvegardée', 'success'); });
             },
-            export() {
-                const data = {};
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    if (key.startsWith('ccna_')) data[key] = localStorage.getItem(key);
-                }
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = `ccna-backup-${new Date().toISOString().split('T')[0]}.json`;
-                a.click(); URL.revokeObjectURL(url);
-                Utils.showToast('Sauvegarde JSON téléchargée !', 'success');
-            },
-            import(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const data = JSON.parse(event.target.result);
-                        Object.keys(data).forEach(key => {
-                            if (key.startsWith('ccna_')) localStorage.setItem(key, data[key]);
-                        });
-                        Utils.showToast('Données restaurées avec succès ! Rechargement...', 'success');
-                        setTimeout(() => location.reload(), 1500);
-                    } catch (err) {
-                        Utils.showToast('Fichier JSON invalide', 'error');
-                    }
-                };
-                reader.readAsText(file);
-            }
+            async sendReminderEmail(reminder) { if (!UserData.emailConfig || !UserData.emailConfig.userEmail) return false; try { await emailjs.send(UserData.emailConfig.serviceId, UserData.emailConfig.templateId, { to_email: UserData.emailConfig.userEmail, subject: `⏰ Rappel CCNA : ${reminder.lessonName}`, message: reminder.message || `Il est temps d'étudier : ${reminder.lessonName}`, lesson_name: reminder.lessonName, progress: '' }); return true; } catch (e) { return false; } }
         };
 
-        // ==========================================
-        // INITIALISATION GLOBALE
-        // ==========================================
-        document.addEventListener('DOMContentLoaded', () => {
+        const Reminders = {
+            init() { this.populateLessonsSelect(); this.refreshList(); document.getElementById('addReminder').addEventListener('click', () => this.add()); this.startChecker(); },
+            populateLessonsSelect() { const select = document.getElementById('reminderLesson'); select.innerHTML = '<option value="">-- Sélectionner une leçon --</option>'; LESSONS.forEach(l => { select.innerHTML += `<option value="${l.id}">${l.name}</option>`; }); },
+            add() {
+                const lessonId = document.getElementById('reminderLesson').value; const dateStr = document.getElementById('reminderDate').value; const message = document.getElementById('reminderMessage').value.trim();
+                if (!lessonId || !dateStr) { showToast('Sélectionnez une leçon et une date', 'warning'); return; }
+                const reminderDate = new Date(dateStr);
+                if (isNaN(reminderDate.getTime())) { showToast('Format de date invalide', 'error'); return; }
+                if (reminderDate <= new Date()) { showToast('La date doit être dans le futur', 'warning'); return; }
+                const lesson = LESSONS.find(l => l.id === lessonId);
+                UserData.reminders.push({ id: 'rem_' + Date.now(), lessonId, lessonName: lesson ? lesson.name : lessonId, date: reminderDate.toISOString(), message: message || `Il est temps d'étudier : ${lesson ? lesson.name : lessonId}`, triggered: false });
+                saveUserData(); this.refreshList(); showToast('Rappel programmé ⏰', 'success');
+                document.getElementById('reminderLesson').value = ''; document.getElementById('reminderDate').value = ''; document.getElementById('reminderMessage').value = '';
+            },
+            refreshList() {
+                const container = document.getElementById('remindersList'); container.innerHTML = '';
+                if (UserData.reminders.length === 0) { container.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">Aucun rappel programmé</p>'; return; }
+                UserData.reminders.sort((a, b) => new Date(a.date) - new Date(b.date));
+                UserData.reminders.forEach(reminder => {
+                    const card = document.createElement('div'); card.className = 'reminder-card bg-gray-700 p-4 rounded-lg mb-2';
+                    const dateStr = new Date(reminder.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    card.innerHTML = `<div class="flex justify-between items-start"><div class="flex-1"><div class="font-semibold text-sm">${reminder.lessonName}</div><div class="text-xs text-gray-400 mt-1">📅 ${dateStr} ${reminder.triggered ? '(Déclenché ✅)' : ''}</div><div class="text-sm mt-2 text-gray-300">${reminder.message}</div></div><button class="text-red-400 hover:text-red-300 text-sm ml-4 delete-reminder" data-id="${reminder.id}">🗑️</button></div>`;
+                    container.appendChild(card);
+                });
+                document.querySelectorAll('.delete-reminder').forEach(btn => { btn.addEventListener('click', () => { UserData.reminders = UserData.reminders.filter(r => r.id !== btn.dataset.id); saveUserData(); this.refreshList(); showToast('Rappel supprimé', 'info'); }); });
+            },
+            startChecker() { setInterval(() => this.checkReminders(), 10000); this.checkReminders(); },
+            checkReminders() { const now = new Date(); let updated = false; UserData.reminders.forEach(reminder => { if (reminder.triggered) return; if (new Date(reminder.date) <= now) { this.trigger(reminder); reminder.triggered = true; updated = true; } }); if (updated) { saveUserData(); this.refreshList(); } },
+            trigger(reminder) { showToast(`⏰ RAPPEL : ${reminder.lessonName}`, 'warning'); if ('Notification' in window && Notification.permission === 'granted') { new Notification('⏰ Rappel CCNA', { body: reminder.message, icon: '📚' }); } EmailService.sendReminderEmail(reminder); }
+        };
+
+        function initApp() {
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
                     document.querySelectorAll('.nav-tab').forEach(t => { t.classList.remove('tab-active'); t.classList.add('tab-inactive'); });
@@ -758,38 +1040,14 @@
                     document.getElementById(`tab-${tab.dataset.tab}`).classList.remove('hidden');
                 });
             });
-
-            Dashboard.init();
-            Timeline.init();
-            Progress.init();
-            Pomodoro.init();
-            Subnetting.init();
-            Backup.init();
-            Gamification.checkBadges();
-
+            Dashboard.init(); Timeline.init(); Progress.init(); Pomodoro.init(); Subnetting.init(); NotesManager.init(); Gamification.checkBadges(); EmailService.init(); Reminders.init();
             document.getElementById('submitQuiz').addEventListener('click', () => Quiz.submit());
-            document.getElementById('skipQuiz').addEventListener('click', () => {
-                document.getElementById('quizModal').classList.add('hidden');
-            });
-
-            document.getElementById('saveNote').addEventListener('click', () => {
-                Utils.addXP(5); Utils.updateStreak();
-                Utils.showToast('Note sauvegardée (+5 XP)', 'success');
-            });
-            document.querySelectorAll('.note-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelector('[data-tab="notes"]').click();
-                    document.getElementById('noteTitle').textContent = LESSONS.find(l => l.id === btn.dataset.lesson).name;
-                });
-            });
-
-            document.getElementById('resetProgress').addEventListener('click', () => Progress.reset());
+            document.getElementById('skipQuiz').addEventListener('click', () => { document.getElementById('quizModal').classList.add('hidden'); });
             setInterval(() => Dashboard.updateCountdown(), 60000);
-            
-            if ('Notification' in window && Notification.permission === 'default') {
-                Notification.requestPermission();
-            }
-        });
+            if ('Notification' in window && Notification.permission === 'default') { Notification.requestPermission(); }
+        }
+
+        if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Error', err)); }); }
     </script>
 </body>
 </html>
