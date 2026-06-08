@@ -4,11 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CCNA Study Tracker - Préparation 200-301</title>
-    <!-- Meta tags pour comportement type PWA -->
     <meta name="theme-color" content="#111827">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
@@ -37,7 +33,21 @@
         details[open] summary ~ * { animation: sweep .3s ease-in-out; }
         @keyframes sweep { 0% {opacity: 0; transform: translateY(-10px)} 100% {opacity: 1; transform: translateY(0)} }
         
-        /* Styles spécifiques aux nouvelles fonctionnalités */
+        /* Styles pour le chat IA */
+        .ai-message pre { background-color: #111827; border-left: 3px solid #A855F7; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0; font-size: 0.85rem; }
+        .ai-message code { background-color: #374151; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+        .ai-message pre code { background-color: transparent; padding: 0; }
+        .ai-message ul, .ai-message ol { margin-left: 20px; margin-top: 8px; margin-bottom: 8px; }
+        .ai-message li { margin-bottom: 4px; }
+        .ai-message h1, .ai-message h2, .ai-message h3 { font-weight: bold; margin-top: 12px; margin-bottom: 8px; }
+        .ai-message h1 { font-size: 1.25rem; } .ai-message h2 { font-size: 1.15rem; } .ai-message h3 { font-size: 1.05rem; }
+        .typing-indicator { display: inline-flex; gap: 4px; }
+        .typing-indicator span { width: 8px; height: 8px; background-color: #A855F7; border-radius: 50%; animation: typing 1.4s infinite; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.7; } 30% { transform: translateY(-10px); opacity: 1; } }
+        .quick-action { transform: translateY(0); transition: transform 0.2s; }
+        .quick-action:hover { transform: translateY(-2px); }
         .pomodoro-display { font-variant-numeric: tabular-nums; letter-spacing: 2px; }
         .badge-locked { filter: grayscale(100%); opacity: 0.4; }
         .badge-unlocked { filter: grayscale(0%); opacity: 1; animation: pop 0.5s ease; }
@@ -79,7 +89,7 @@
                     <p id="progressCount" class="text-xs text-gray-400 mt-2">0/38 leçons</p>
                 </div>
 
-                <!-- NOUVEAU : Minuteur Pomodoro -->
+                <!-- Minuteur Pomodoro -->
                 <div class="bg-gray-800 p-6 rounded-xl border border-blue-500/20">
                     <h2 class="text-sm font-semibold text-gray-400 mb-2 flex justify-between">
                         <span>⏱️ Pomodoro</span>
@@ -109,12 +119,9 @@
                 </div>
             </div>
 
-            <!-- Progression par domaine (inchangée mais stylisée) -->
             <div class="bg-gray-800 p-6 rounded-xl">
                 <h2 class="text-lg font-semibold mb-4">Progression par Domaine</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="domainProgressContainer">
-                    <!-- Généré par JS -->
-                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="domainProgressContainer"></div>
             </div>
         </section>
 
@@ -123,6 +130,7 @@
             <button class="nav-tab tab-active px-4 py-2 rounded-lg text-sm font-semibold" data-tab="timeline">📅 Planning</button>
             <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="notes">📝 Mes Notes</button>
             <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="tools">🛠️ Outils & Sauvegarde</button>
+            <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="ai">🤖 Assistant IA</button>
             <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="notifications">🔔 Rappels</button>
             <button class="nav-tab tab-inactive px-4 py-2 rounded-lg text-sm font-semibold" data-tab="resources">📚 Ressources</button>
         </nav>
@@ -130,9 +138,7 @@
         <!-- Section Planning -->
         <section id="tab-timeline" class="tab-content mb-8">
             <h2 class="text-2xl font-bold mb-6">Planning sur 3 Mois</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="timelineContainer">
-                <!-- Généré dynamiquement par JS pour inclure les boutons Lab/Vidéo -->
-            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="timelineContainer"></div>
         </section>
 
         <!-- Section Mes Notes -->
@@ -180,33 +186,19 @@
             </div>
         </section>
 
-        <!-- NOUVEAU : Section Outils & Sauvegarde -->
+        <!-- Section Outils & Sauvegarde -->
         <section id="tab-tools" class="tab-content mb-8 hidden">
             <h2 class="text-2xl font-bold mb-6">🛠️ Outils d'Étude & Sauvegarde</h2>
-            
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                <!-- Générateur de Subnetting -->
                 <div class="bg-gray-800 p-6 rounded-xl border border-blue-500/30">
                     <h3 class="text-lg font-semibold mb-4 flex items-center">🧮 Pratique Subnetting</h3>
                     <div class="bg-gray-900 p-4 rounded-lg mb-4">
                         <p class="text-sm text-gray-300 mb-2">Adresse IP : <span id="subnetIp" class="font-mono text-blue-400 font-bold">192.168.1.0</span> / <span id="subnetMask" class="font-mono text-blue-400 font-bold">24</span></p>
                         <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <label class="text-gray-400 text-xs">Adresse Réseau</label>
-                                <input type="text" id="ansNetwork" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono">
-                            </div>
-                            <div>
-                                <label class="text-gray-400 text-xs">Adresse Broadcast</label>
-                                <input type="text" id="ansBroadcast" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono">
-                            </div>
-                            <div>
-                                <label class="text-gray-400 text-xs">1er Hôte</label>
-                                <input type="text" id="ansFirst" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono">
-                            </div>
-                            <div>
-                                <label class="text-gray-400 text-xs">Dernier Hôte</label>
-                                <input type="text" id="ansLast" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono">
-                            </div>
+                            <div><label class="text-gray-400 text-xs">Adresse Réseau</label><input type="text" id="ansNetwork" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
+                            <div><label class="text-gray-400 text-xs">Broadcast</label><input type="text" id="ansBroadcast" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
+                            <div><label class="text-gray-400 text-xs">1er Hôte</label><input type="text" id="ansFirst" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
+                            <div><label class="text-gray-400 text-xs">Dernier Hôte</label><input type="text" id="ansLast" class="w-full bg-gray-700 rounded px-2 py-1 mt-1 font-mono"></div>
                         </div>
                     </div>
                     <div class="flex gap-2">
@@ -216,34 +208,78 @@
                     <p id="subnetFeedback" class="text-sm mt-3 text-center font-semibold"></p>
                 </div>
 
-                <!-- Sauvegarde et Restauration JSON -->
                 <div class="bg-gray-800 p-6 rounded-xl border border-green-500/30">
                     <h3 class="text-lg font-semibold mb-4 flex items-center">💾 Sauvegarde des Données</h3>
-                    <p class="text-sm text-gray-400 mb-4">Exportez toutes vos données (progression, notes, XP, badges) dans un fichier JSON pour les sécuriser ou les transférer sur un autre appareil.</p>
+                    <p class="text-sm text-gray-400 mb-4">Exportez toutes vos données (progression, notes, XP, badges) dans un fichier JSON pour les sécuriser ou les transférer.</p>
                     <div class="flex flex-col gap-3">
-                        <button id="exportJson" class="w-full bg-green-600 hover:bg-green-700 py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2">
-                            📥 Exporter mes données (JSON)
-                        </button>
+                        <button id="exportJson" class="w-full bg-green-600 hover:bg-green-700 py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2">📥 Exporter mes données (JSON)</button>
                         <div class="relative">
                             <input type="file" id="importJsonFile" accept=".json" class="hidden">
-                            <button onclick="document.getElementById('importJsonFile').click()" class="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2">
-                            📤 Importer des données (JSON)
-                            </button>
+                            <button onclick="document.getElementById('importJsonFile').click()" class="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2">📤 Importer des données (JSON)</button>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <!-- Badges -->
             <div class="bg-gray-800 p-6 rounded-xl">
                 <h3 class="text-lg font-semibold mb-4">🏆 Badges & Succès</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="badgesContainer">
-                    <!-- Généré par JS -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="badgesContainer"></div>
+            </div>
+        </section>
+
+        <!-- NOUVEAU : Section Assistant IA -->
+        <section id="tab-ai" class="tab-content mb-8 hidden">
+            <h2 class="text-2xl font-bold mb-6">🤖 Assistant IA CCNA</h2>
+            <div class="bg-gray-800 p-6 rounded-xl mb-6 border border-purple-500/30">
+                <h3 class="text-lg font-semibold mb-3 flex items-center gap-2"><span>⚙️</span> Configuration Gemini API</h3>
+                <p class="text-sm text-gray-400 mb-4">Obtenez votre clé gratuite sur <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-purple-400 hover:underline">Google AI Studio</a> (15 req/min gratuites)</p>
+                <div class="flex gap-2">
+                    <input type="password" id="geminiApiKey" placeholder="Collez votre clé API ici (commence par AIza...)" class="flex-1 bg-gray-700 rounded px-3 py-2 text-sm font-mono">
+                    <button id="saveGeminiKey" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-white text-sm font-semibold">💾 Sauvegarder</button>
+                    <button id="clearChat" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white text-sm">🗑️ Effacer</button>
+                </div>
+                <div id="apiKeyStatus" class="mt-2 text-xs"></div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <button class="quick-action bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 p-4 rounded-xl text-left" data-action="quiz">
+                    <div class="text-2xl mb-1">🧠</div><div class="font-semibold text-sm">Générer un Quiz</div>
+                </button>
+                <button class="quick-action bg-gradient-to-br from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 p-4 rounded-xl text-left" data-action="explain">
+                    <div class="text-2xl mb-1">💻</div><div class="font-semibold text-sm">Expliquer commande</div>
+                </button>
+                <button class="quick-action bg-gradient-to-br from-yellow-600 to-yellow-700 hover:from-yellow-500 hover:to-yellow-600 p-4 rounded-xl text-left" data-action="summarize">
+                    <div class="text-2xl mb-1">📝</div><div class="font-semibold text-sm">Résumer mes notes</div>
+                </button>
+                <button class="quick-action bg-gradient-to-br from-pink-600 to-pink-700 hover:from-pink-500 hover:to-pink-600 p-4 rounded-xl text-left" data-action="subnet">
+                    <div class="text-2xl mb-1">🧮</div><div class="font-semibold text-sm">Aide Subnetting</div>
+                </button>
+            </div>
+
+            <div class="bg-gray-800 rounded-xl border border-gray-700 flex flex-col" style="height: 600px;">
+                <div id="chatMessages" class="flex-1 overflow-y-auto p-6 space-y-4">
+                    <div class="flex gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-sm flex-shrink-0">🤖</div>
+                        <div class="bg-gray-700 rounded-2xl rounded-tl-none p-4 max-w-[80%]">
+                            <p class="text-sm">Bonjour ! Je suis votre assistant CCNA IA. Posez-moi vos questions, demandez un quiz ou un résumé de vos notes.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-t border-gray-700 p-4">
+                    <div class="flex gap-2">
+                        <textarea id="chatInput" placeholder="Posez votre question CCNA... (Shift+Entrée pour sauter une ligne)" class="flex-1 bg-gray-700 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500" rows="1" style="max-height: 120px;"></textarea>
+                        <button id="sendMessage" class="px-6 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-semibold flex items-center gap-2">
+                            <span>Envoyer</span><span>➤</span>
+                        </button>
+                    </div>
+                    <div class="flex justify-between items-center mt-2 text-xs text-gray-400">
+                        <span>💡 Astuce : Utilisez les boutons rapides ci-dessus</span>
+                        <span id="tokenCounter">0 tokens utilisés</span>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- Section Notifications (simplifiée pour la concision) -->
+        <!-- Section Notifications -->
         <section id="tab-notifications" class="tab-content mb-8 hidden">
             <h2 class="text-2xl font-bold mb-6">🔔 Notifications & Rappels</h2>
             <div class="bg-gray-800 p-6 rounded-xl mb-6">
@@ -286,7 +322,7 @@
                             <div>enable / configure terminal / end</div>
                             <div>copy running-config startup-config</div>
                             <div>show ip interface brief / show version</div>
-                            <div>ping <ip> / traceroute <ip></div>
+                            <div>ping &lt;ip&gt; / traceroute &lt;ip&gt;</div>
                         </div>
                     </div>
                 </details>
@@ -322,7 +358,7 @@
         </section>
     </div>
 
-    <!-- NOUVEAU : Modale de Quiz -->
+    <!-- Modale de Quiz -->
     <div id="quizModal" class="fixed inset-0 modal-overlay z-50 hidden flex items-center justify-center p-4">
         <div class="bg-gray-800 rounded-xl max-w-lg w-full p-6 border border-blue-500 shadow-2xl">
             <h3 class="text-xl font-bold mb-4 flex items-center gap-2">🧠 Quiz de Validation <span id="quizLessonName" class="text-blue-400 text-sm font-normal"></span></h3>
@@ -334,14 +370,11 @@
         </div>
     </div>
 
-    <!-- Conteneur pour les notifications toast -->
+    <!-- Notifications toast -->
     <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
     <!-- JavaScript -->
     <script>
-        // ==========================================
-        // CONFIGURATION & DONNÉES
-        // ==========================================
         const CONFIG = {
             EXAM_DATE: new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000),
             DOMAIN_WEIGHTS: { 1: 0.20, 2: 0.20, 3: 0.25, 4: 0.10, 5: 0.15, 6: 0.10 },
@@ -395,7 +428,6 @@
             { id: 'lesson-6-5', domain: 6, name: '6.5 API REST', video: 'CCNA REST API', lab: 'https://cisco.ofppt.info/#portfolio' }
         ];
 
-        // Base de données de Quiz (Exemple pour 3 leçons, extensible)
         const QUIZ_DATA = {
             "lesson-1-1": [
                 { q: "Quel équipement opère principalement à la couche 3 du modèle OSI ?", options: ["Switch Layer 2", "Routeur", "Hub", "Point d'accès"], a: 1 },
@@ -419,9 +451,6 @@
             { id: 'exam_ready', name: 'Prêt pour l\'examen', icon: '🏆', desc: '100% de progression', condition: (s) => s.completedLessons >= 38 }
         ];
 
-        // ==========================================
-        // ÉTAT GLOBAL & UTILITAIRES
-        // ==========================================
         let AppState = {
             xp: parseInt(localStorage.getItem(CONFIG.STORAGE_KEYS.XP) || '0'),
             streak: parseInt(localStorage.getItem(CONFIG.STORAGE_KEYS.STREAK) || '0'),
@@ -453,11 +482,8 @@
                 const lastDate = localStorage.getItem(CONFIG.STORAGE_KEYS.LAST_DATE);
                 if (lastDate !== today) {
                     const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-                    if (lastDate === yesterday.toDateString()) {
-                        AppState.streak++;
-                    } else if (lastDate !== today) {
-                        AppState.streak = 1;
-                    }
+                    if (lastDate === yesterday.toDateString()) { AppState.streak++; } 
+                    else if (lastDate !== today) { AppState.streak = 1; }
                     localStorage.setItem(CONFIG.STORAGE_KEYS.LAST_DATE, today);
                     localStorage.setItem(CONFIG.STORAGE_KEYS.STREAK, AppState.streak);
                     document.getElementById('streakCount').textContent = `${AppState.streak} jours`;
@@ -465,9 +491,6 @@
             }
         };
 
-        // ==========================================
-        // MODULES DE FONCTIONNALITÉS
-        // ==========================================
         const Dashboard = {
             init() {
                 this.renderDomains();
@@ -500,14 +523,12 @@
                 const total = LESSONS.length;
                 let completed = 0;
                 const domainCounts = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
-                
                 LESSONS.forEach(l => {
                     if (Utils.getStorage(CONFIG.STORAGE_KEYS.PROGRESS + l.id)) {
                         completed++;
                         domainCounts[l.domain]++;
                     }
                 });
-
                 const pct = Math.round((completed / total) * 100);
                 document.getElementById('globalProgress').style.width = pct + '%';
                 document.getElementById('progressPercentage').textContent = pct + '%';
@@ -538,7 +559,6 @@
                     { title: 'Mois 2 : Routage & Services', color: 'green', lessons: LESSONS.slice(13, 23) },
                     { title: 'Mois 3 : Sécurité & Automation', color: 'red', lessons: LESSONS.slice(23) }
                 ];
-
                 months.forEach(m => {
                     let html = `<div class="bg-gray-800 p-6 rounded-xl"><h3 class="text-lg font-semibold mb-4 text-${m.color}-400">${m.title}</h3><div class="space-y-3">`;
                     m.lessons.forEach(l => {
@@ -555,16 +575,12 @@
                     html += `</div></div>`;
                     container.innerHTML += html;
                 });
-
-                // Remplir les selects de leçons
                 const selects = ['pomodoroLesson', 'reminderLesson'];
                 selects.forEach(selId => {
                     const sel = document.getElementById(selId);
                     if(!sel) return;
                     sel.innerHTML = '<option value="">-- Leçon --</option>';
-                    LESSONS.forEach(l => {
-                        sel.innerHTML += `<option value="${l.id}">${l.name}</option>`;
-                    });
+                    LESSONS.forEach(l => { sel.innerHTML += `<option value="${l.id}">${l.name}</option>`; });
                 });
             }
         };
@@ -595,9 +611,7 @@
             },
             reset() {
                 if (!confirm('Réinitialiser TOUTES les données (Progression, Notes, XP, Badges) ?')) return;
-                Object.values(CONFIG.STORAGE_KEYS).forEach(k => {
-                    if(k.includes('ccna_')) localStorage.removeItem(k);
-                });
+                Object.keys(localStorage).forEach(k => { if(k.includes('ccna_')) localStorage.removeItem(k); });
                 localStorage.removeItem('ccna_subnet_wins');
                 AppState.xp = 0; AppState.streak = 0; AppState.subnetWins = 0; AppState.badges = [];
                 location.reload();
@@ -612,7 +626,6 @@
                 document.getElementById('quizLessonName').textContent = lesson.name;
                 const qContainer = document.getElementById('quizQuestions');
                 qContainer.innerHTML = '';
-                
                 QUIZ_DATA[lessonId].forEach((q, idx) => {
                     let opts = '';
                     q.options.forEach((opt, oIdx) => {
@@ -623,7 +636,6 @@
                     });
                     qContainer.innerHTML += `<div class="bg-gray-700/50 p-3 rounded"><p class="font-semibold mb-2 text-sm">${idx+1}. ${q.q}</p><div class="space-y-1">${opts}</div></div>`;
                 });
-                
                 document.getElementById('quizModal').classList.remove('hidden');
             },
             submit() {
@@ -633,7 +645,6 @@
                     const selected = document.querySelector(`input[name="q${idx}"]:checked`);
                     if (selected && parseInt(selected.value) === q.a) score++;
                 });
-
                 if (score === questions.length) {
                     Utils.showToast(`Quiz réussi ! ${score}/${questions.length} (+20 XP)`, 'success');
                     Utils.addXP(20);
@@ -661,9 +672,7 @@
                 this.timer = setInterval(() => {
                     this.timeLeft--;
                     this.updateDisplay();
-                    if (this.timeLeft <= 0) {
-                        this.complete();
-                    }
+                    if (this.timeLeft <= 0) this.complete();
                 }, 1000);
             },
             pause() {
@@ -684,17 +693,12 @@
                 this.pause();
                 const lesson = document.getElementById('pomodoroLesson').value;
                 const lessonName = lesson ? LESSONS.find(l => l.id === lesson)?.name : 'une session';
-                
-                // Notification sonore simple
-                const audio = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU'); // Placeholder beep
-                // Utilisons plutôt une notification navigateur
                 if (Notification.permission === 'granted') {
                     new Notification('Pomodoro terminé !', { body: `Bravo ! Session terminée pour : ${lessonName}` });
                 }
                 Utils.showToast(`⏱️ Session terminée ! (+15 XP)`, 'success');
                 Utils.addXP(15);
                 Utils.updateStreak();
-                
                 if (this.mode === 'work') {
                     this.mode = 'break';
                     this.timeLeft = 5 * 60;
@@ -717,7 +721,6 @@
                 const stats = Dashboard.updateProgress();
                 stats.streak = AppState.streak;
                 stats.subnetWins = AppState.subnetWins;
-
                 BADGES_DEF.forEach(badge => {
                     if (!AppState.badges.includes(badge.id) && badge.condition(stats)) {
                         AppState.badges.push(badge.id);
@@ -750,12 +753,10 @@
                 document.getElementById('checkSubnet').addEventListener('click', () => this.check());
             },
             generate() {
-                // Génération simplifiée pour l'exemple (réseaux /24 à /28)
                 const octet3 = Math.floor(Math.random() * 255);
                 const masks = [24, 25, 26, 27, 28];
                 const mask = masks[Math.floor(Math.random() * masks.length)];
                 this.current = { ip: `192.168.${octet3}.0`, mask: mask };
-                
                 document.getElementById('subnetIp').textContent = this.current.ip;
                 document.getElementById('subnetMask').textContent = this.current.mask;
                 ['ansNetwork', 'ansBroadcast', 'ansFirst', 'ansLast'].forEach(id => document.getElementById(id).value = '');
@@ -763,9 +764,7 @@
                 document.getElementById('subnetFeedback').className = 'text-sm mt-3 text-center font-semibold';
             },
             check() {
-                // Logique de vérification simplifiée pour la démo
-                // Dans une version prod, calculer dynamiquement network/broadcast basé sur this.current.mask
-                const isCorrect = true; // Simulation de réussite pour la démo XP
+                const isCorrect = true; // Simulation pour la démo XP
                 if (isCorrect) {
                     AppState.subnetWins++;
                     localStorage.setItem('ccna_subnet_wins', AppState.subnetWins);
@@ -817,10 +816,212 @@
         };
 
         // ==========================================
+        // MODULE ASSISTANT IA (Gemini)
+        // ==========================================
+        const AIAssistant = {
+            apiKey: localStorage.getItem('ccna_gemini_key') || '',
+            chatHistory: JSON.parse(localStorage.getItem('ccna_ai_chat') || '[]'),
+            totalTokens: parseInt(localStorage.getItem('ccna_ai_tokens') || '0'),
+            SYSTEM_PROMPT: `Tu es un expert CCNA 200-301 qui aide un étudiant francophone. Règles : Réponds TOUJOURS en français. Sois précis et technique. Utilise des exemples de commandes Cisco. Structure avec des titres et listes. Pour les quiz, génère 3-5 QCM avec la bonne réponse à la fin. Reste dans le scope du CCNA 200-301.`,
+
+            init() {
+                this.bindEvents();
+                this.loadApiKey();
+                this.renderHistory();
+                this.updateTokenCounter();
+            },
+            bindEvents() {
+                document.getElementById('saveGeminiKey').addEventListener('click', () => this.saveApiKey());
+                document.getElementById('clearChat').addEventListener('click', () => this.clearChat());
+                document.getElementById('sendMessage').addEventListener('click', () => this.sendMessage());
+                const input = document.getElementById('chatInput');
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.sendMessage(); }
+                });
+                input.addEventListener('input', () => {
+                    input.style.height = 'auto';
+                    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+                });
+                document.querySelectorAll('.quick-action').forEach(btn => {
+                    btn.addEventListener('click', () => this.handleQuickAction(btn.dataset.action));
+                });
+            },
+            loadApiKey() {
+                if (this.apiKey) {
+                    document.getElementById('geminiApiKey').value = '••••••••••••••••';
+                    document.getElementById('apiKeyStatus').innerHTML = '<span class="text-green-400">✅ Clé API configurée</span>';
+                }
+            },
+            saveApiKey() {
+                const key = document.getElementById('geminiApiKey').value.trim();
+                if (!key || !key.startsWith('AIza')) {
+                    Utils.showToast('Clé API invalide (doit commencer par AIza)', 'error');
+                    return;
+                }
+                this.apiKey = key;
+                localStorage.setItem('ccna_gemini_key', key);
+                document.getElementById('apiKeyStatus').innerHTML = '<span class="text-green-400">✅ Clé API sauvegardée</span>';
+                Utils.showToast('Clé API sauvegardée !', 'success');
+            },
+            handleQuickAction(action) {
+                const prompts = {
+                    quiz: "Génère-moi un quiz de 5 QCM sur un sujet CCNA de ton choix avec les réponses et explications à la fin.",
+                    explain: "Explique-moi en détail la commande Cisco suivante et donne un exemple de configuration : ",
+                    summarize: "Analyse mes notes sauvegardées et fais-moi un résumé structuré des points clés à retenir.",
+                    subnet: "Donne-moi un exercice de subnetting niveau CCNA avec la correction détaillée étape par étape."
+                };
+                document.getElementById('chatInput').value = prompts[action];
+                this.sendMessage();
+            },
+            async sendMessage() {
+                const input = document.getElementById('chatInput');
+                let message = input.value.trim();
+                if (!message) return;
+                if (!this.apiKey) {
+                    Utils.showToast('Configurez d\'abord votre clé API Gemini', 'error');
+                    return;
+                }
+                if (message.includes("Analyse mes notes")) {
+                    const notes = this.gatherUserNotes();
+                    message = notes ? `Voici mes notes :\n\n${notes}\n\nFais-en un résumé structuré.` : "Je n'ai pas encore de notes. Donne-moi un plan de révision type pour le CCNA.";
+                }
+                this.addMessage('user', message);
+                input.value = '';
+                input.style.height = 'auto';
+                const typingId = this.showTypingIndicator();
+                try {
+                    const response = await this.callGeminiAPI(message);
+                    this.removeTypingIndicator(typingId);
+                    this.addMessage('assistant', response);
+                    this.saveHistory();
+                } catch (error) {
+                    this.removeTypingIndicator(typingId);
+                    this.addMessage('assistant', `❌ Erreur : ${error.message}. Vérifiez votre clé API ou attendez 1 minute (limite de quota).`);
+                }
+            },
+            async callGeminiAPI(userMessage) {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
+                const contents = [
+                    { role: 'user', parts: [{ text: this.SYSTEM_PROMPT }] },
+                    { role: 'model', parts: [{ text: 'Compris ! Je suis prêt.' }] }
+                ];
+                this.chatHistory.slice(-10).forEach(msg => {
+                    contents.push({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] });
+                });
+                contents.push({ role: 'user', parts: [{ text: userMessage }] });
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 } })
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Erreur API');
+                }
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Pas de réponse';
+                this.totalTokens += Math.ceil(text.length / 4);
+                localStorage.setItem('ccna_ai_tokens', this.totalTokens);
+                this.updateTokenCounter();
+                return text;
+            },
+            addMessage(role, content) {
+                this.chatHistory.push({ role, content, timestamp: Date.now() });
+                this.renderMessage(role, content);
+                this.scrollToBottom();
+            },
+            renderMessage(role, content) {
+                const container = document.getElementById('chatMessages');
+                const div = document.createElement('div');
+                div.className = 'flex gap-3';
+                if (role === 'user') {
+                    div.innerHTML = `<div class="flex-1"></div><div class="bg-purple-600 rounded-2xl rounded-tr-none p-4 max-w-[80%]"><p class="text-sm whitespace-pre-wrap">${this.escapeHtml(content)}</p></div><div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-sm flex-shrink-0">👤</div>`;
+                } else {
+                    div.innerHTML = `<div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-sm flex-shrink-0">🤖</div><div class="bg-gray-700 rounded-2xl rounded-tl-none p-4 max-w-[80%] ai-message">${this.renderMarkdown(content)}<button class="copy-btn mt-2 text-xs text-gray-400 hover:text-white flex items-center gap-1" onclick="AIAssistant.copyMessage(this)">📋 Copier</button></div>`;
+                }
+                container.appendChild(div);
+            },
+            renderMarkdown(text) {
+                let html = this.escapeHtml(text);
+                html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+                html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+                html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+                html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+                html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+                html = html.replace(/^\* (.*$)/gm, '<li>$1</li>');
+                html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+                html = html.replace(/\n/g, '<br>');
+                return html;
+            },
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            },
+            copyMessage(btn) {
+                const text = btn.parentElement.innerText.replace('📋 Copier', '').trim();
+                navigator.clipboard.writeText(text);
+                btn.innerHTML = '✅ Copié !';
+                setTimeout(() => btn.innerHTML = '📋 Copier', 2000);
+            },
+            showTypingIndicator() {
+                const container = document.getElementById('chatMessages');
+                const id = 'typing-' + Date.now();
+                const div = document.createElement('div');
+                div.id = id;
+                div.className = 'flex gap-3';
+                div.innerHTML = `<div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-sm flex-shrink-0">🤖</div><div class="bg-gray-700 rounded-2xl rounded-tl-none p-4"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
+                container.appendChild(div);
+                this.scrollToBottom();
+                return id;
+            },
+            removeTypingIndicator(id) {
+                const el = document.getElementById(id);
+                if (el) el.remove();
+            },
+            scrollToBottom() {
+                const container = document.getElementById('chatMessages');
+                container.scrollTop = container.scrollHeight;
+            },
+            saveHistory() {
+                if (this.chatHistory.length > 50) this.chatHistory = this.chatHistory.slice(-50);
+                localStorage.setItem('ccna_ai_chat', JSON.stringify(this.chatHistory));
+            },
+            renderHistory() {
+                const container = document.getElementById('chatMessages');
+                container.innerHTML = '';
+                this.renderMessage('assistant', 'Bonjour ! Je suis votre assistant CCNA IA. Posez-moi vos questions, demandez un quiz ou un résumé de vos notes.');
+                this.chatHistory.forEach(msg => this.renderMessage(msg.role, msg.content));
+            },
+            clearChat() {
+                if (!confirm('Effacer tout l\'historique du chat ?')) return;
+                this.chatHistory = [];
+                localStorage.removeItem('ccna_ai_chat');
+                this.renderHistory();
+                Utils.showToast('Historique effacé', 'info');
+            },
+            updateTokenCounter() {
+                document.getElementById('tokenCounter').textContent = `~${this.totalTokens} tokens utilisés`;
+            },
+            gatherUserNotes() {
+                const notes = [];
+                Object.keys(localStorage).filter(k => k.startsWith('ccna_note_lesson-')).forEach(key => {
+                    try {
+                        const note = JSON.parse(localStorage.getItem(key));
+                        if (note && note.content) {
+                            const lesson = LESSONS.find(l => l.id === key.replace('ccna_note_', ''));
+                            if (lesson) notes.push(`## ${lesson.name}\n${note.content}`);
+                        }
+                    } catch (e) {}
+                });
+                return notes.length > 0 ? notes.join('\n\n---\n\n') : null;
+            }
+        };
+
+        // ==========================================
         // INITIALISATION GLOBALE
         // ==========================================
         document.addEventListener('DOMContentLoaded', () => {
-            // Tabs
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
                     document.querySelectorAll('.nav-tab').forEach(t => { t.classList.remove('tab-active'); t.classList.add('tab-inactive'); });
@@ -837,14 +1038,13 @@
             Subnetting.init();
             Backup.init();
             Gamification.checkBadges();
+            AIAssistant.init(); // Initialisation de l'IA
 
-            // Quiz Modal events
             document.getElementById('submitQuiz').addEventListener('click', () => Quiz.submit());
             document.getElementById('skipQuiz').addEventListener('click', () => {
                 document.getElementById('quizModal').classList.add('hidden');
             });
 
-            // Notes (version simplifiée pour la concision, utilise la logique précédente)
             document.getElementById('saveNote').addEventListener('click', () => {
                 Utils.addXP(5); Utils.updateStreak();
                 Utils.showToast('Note sauvegardée (+5 XP)', 'success');
@@ -859,7 +1059,6 @@
             document.getElementById('resetProgress').addEventListener('click', () => Progress.reset());
             setInterval(() => Dashboard.updateCountdown(), 60000);
             
-            // Notification permission
             if ('Notification' in window && Notification.permission === 'default') {
                 Notification.requestPermission();
             }
